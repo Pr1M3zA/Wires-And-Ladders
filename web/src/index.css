@@ -1,0 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&family=Jomhuria&family=Manrope:wght@200..800&display=swap');
+@import "tailwindcss";
+
+@theme {
+   --font-manrope: "Manrope", sans-serif;
+   --font-title: "Jomhuria", serif;
+   --color-wireladders-blue: #6599C3;
+   --color-wireladders-red: #C36565;
+   --color-wireladders-green: #65C36B;
+   --color-wireladders-light-blue: #78BDF6;
+   --color-wireladders-yellow: #E7E027;
+   --color-wireladders-dark-blue: #2E4A6D;
+   --color-red-2: #e39393;
+}
+
+label, input, select, textarea, button {
+   font-family: var(--font-manrope);
+   color: var(--color-wireladders-dark-blue)
+}
