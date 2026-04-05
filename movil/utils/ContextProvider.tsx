@@ -75,7 +75,7 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 	const [shortcuts, setShortcuts] = useState<ShortCutType[]>([]);
 	const [dices, setDices] = useState<DiceType[]>([]);
 	const [apiURL, setApiURL] = useState('https://wires-and-ladders-api.vercel.app');
-	const [socketURL, setSocketURL] = useState('http://192.168.68.115:3001');
+	const [socketURL, setSocketURL] = useState('https://wires-and-ladders-websocket.onrender.com');
 	const [isDarkMode, setIsDarkMode] = useState(false);
 	const [fontScale, setFontScale] = useState(1);
 
