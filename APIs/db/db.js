@@ -1,5 +1,5 @@
 import mysql from 'mysql2/promise'
-async function connect(){
+async function connect() {
     try {
         const conn = await mysql.createConnection({
             host: process.env.DB_HOST,
@@ -8,13 +8,13 @@ async function connect(){
             password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME
         });
-        console.log('Conexion a la bd establecida');
+        console.log('Conexion a la bd establecida: ', process.env.DB_HOST);
         return conn;
-    } catch(err) {
+    } catch (err) {
         console.error('Ocurrió un error al realizar la conexión con la bd');
         throw err;
     }
 }
 
-export {connect}
+export { connect }
 

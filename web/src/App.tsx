@@ -1,8 +1,6 @@
 import { EducationProvider } from './store/education/EducationProvider.tsx'
 import Login from './app/Login.tsx'
-import Header from './app/Header.tsx'
 import EducationList from './app/EducationList.tsx'
-
 
 function AppContent() {
   sessionStorage.setItem('apiURL', import.meta.env.VITE_API_URL);
@@ -10,7 +8,6 @@ function AppContent() {
   return (
     <div className='flex flex-col bg-neutral-200 w-full h-full text-neutral-800'>
       <Login />
-      <Header />
       <EducationList />
     </div>
   )

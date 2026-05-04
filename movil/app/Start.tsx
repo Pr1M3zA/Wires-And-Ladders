@@ -7,14 +7,13 @@ import Icon from '@expo/vector-icons/Feather';
 import Cube from '@/components/Cube'
 import Figure from '@/components/Figure';
 import * as UIElements from '@/utils/ui-elements.json';
-import { SyncBoardData } from '@/utils/db';
+import { SyncBoardData, loadLocalDbData, getRemoteLastUpdate } from '@/utils/db';
 import Loading from '@/components/Loading';
 import Toast from 'react-native-toast-message';
 import * as SQLite from 'expo-sqlite';
-import { BoardType, EffectType, TileType, ShortCutType, DiceType } from '@/utils/types';
-import ModalConfigAPI from '@/components/ModalConfigAPI';
 import ModalConfig from '@/components/ModalConfig';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { LastUpdate } from '@/utils/types';
 
 const darkColors: { [key: string]: string } = UIElements.start.dark_colors;
 
@@ -24,7 +23,6 @@ export default function Start() {
 	const [layoutBottom, setLayoutBottom] = useState({ x: 0, y: 0, width: 0, height: 0 });
 	const [layoutTop, setLayoutTop] = useState({ x: 0, y: 0, width: 0, height: 0 });
 	const [isLoading, setIsLoading] = useState(false);
-	const [isModalVisible, setIsModalVisible] = useState(false);
 	const [isCfgModalVisible, setIsCfgModalVisible] = useState(false);
 	const [isDbLoaded, setIsDbLoaded] = useState(false);
 	const [volMusic, setVolMusic] = useState(1);
@@ -33,13 +31,37 @@ export default function Start() {
 	const handleLayoutBottom = (event: any) => { setLayoutBottom(event.nativeEvent.layout) };
 	const handleLayoutTop = (event: any) => { setLayoutTop(event.nativeEvent.layout) };
 
-	const SyncAndLoadDbData = async (forceSyncDb: boolean) => {
+	const [lastRemoteUpdate, setLastRemoteUpdate] = useState<LastUpdate[]>([]);
+	const [allowCloudSync, setAllowCloudSync] = useState(false);
+
+	useEffect(() => {
+		checkAllowCloudSync()
+	}, [])
+
+	const checkAllowCloudSync = async () => {
+		const remoteLastUpdate = await getRemoteLastUpdate(apiURL);
+		setLastRemoteUpdate(remoteLastUpdate);
+		const localLastUpdate = await AsyncStorage.getItem('LAST_LOCAL_DB_DATA_SYNC').catch(() => null);
+		if (remoteLastUpdate && localLastUpdate){
+			const maxRemoteUpdate = new Date(Math.max(...remoteLastUpdate.map(item => new Date(item.last_update).getTime())));	
+			if (maxRemoteUpdate > new Date(localLastUpdate)) {
+				setAllowCloudSync(true);
+				Toast.show({ type: 'info', text1: 'Actualización disponible', text2: 'Existen actualizaciones, obtenlas en Ajustes' })
+			}
+		}
+	}
+
+	const SyncAndLoadDbData = async () => {
+		setIsLoading(true)
 		const InitCallHour = new Date()
 		const db = await SQLite.openDatabaseAsync('WiresAndLadders.db');
 		try {
-			setIsLoading(true)
-			await SyncBoardData(apiURL, db, forceSyncDb);
-			await GetLocalDbBoardElements(db);
+			const lastSyncDate = await AsyncStorage.getItem('LAST_LOCAL_DB_DATA_SYNC').catch(() => null);
+			if (!lastSyncDate) await SyncBoardData(db, apiURL, []);
+			await loadLocalDbData(db, { setTileTypes, setTiles, setShortcuts, setBoards, setDices })
+			setIsDbLoaded(true);
+			if (userRow.is_admin)
+				Toast.show({ type: 'success', text1: 'Local DB', text2: 'Base de datos local verificada y lista' })
 		} catch (error: any) {
 			console.log(error.message)
 			Toast.show({ type: 'error', text1: 'Error', text2: error.message })
@@ -49,19 +71,13 @@ export default function Start() {
 			const EndCallHour = new Date();
 			if (userRow.is_admin)
 				Toast.show({ type: 'info', text1: 'DB local Sync', text2: `API GET: respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
-
 			setIsLoading(false)
 		}
 
 	}
 	useEffect(() => {
-		SyncAndLoadDbData(false)
+		SyncAndLoadDbData()
 	}, [])
-
-	const handleCloseModal = async () => {
-		setIsModalVisible(false)
-		await SyncAndLoadDbData(true)
-	}
 
 	const handleCloseCfgModal = (volEff: number, volMusica: number, idxDice: number, darkMode: boolean, fScale: number) => {
 		setIsCfgModalVisible(false);
@@ -75,69 +91,6 @@ export default function Start() {
 	const logOut = () => {
 		setToken('');
 		setUserRow({ id: 0, username: 'guest', first_name: 'Invitado', last_name: '', email: '', profile_image: null, is_admin: false });
-		//router.replace('/Login');
-	}
-
-	/*-----------------------------------------------------------
-			CARGA DE TABLEROS, CASILLAS, ATAJOS Y TIPOS DE CASILLAS
-		------------------------------------------------------------*/
-	const GetLocalDbBoardElements = async (db: SQLite.SQLiteDatabase) => {
-		// Get Shortcuts
-		await db.getAllAsync('SELECT id, id_board, from_tile, to_tile FROM shortcuts ORDER BY id_board')
-			.then(data => {
-				//console.log(`Shortcuts: ${data.length}`)
-				setShortcuts(data as ShortCutType[])
-			})
-			.catch(error => {
-				console.log(error.message)
-				Toast.show({ type: 'error', text1: 'Error (Get Shortcuts local)', text2: error.message })
-			});
-		// Get Boards
-		await db.getAllAsync('SELECT b.id, board_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2, education FROM boards b INNER JOIN board_backgrounds bb ON b.id_background=bb.id ORDER BY b.id')
-			.then(data => {
-				//console.log(`Boards: ${data.length}`)
-				setBoards(data as BoardType[])
-			})
-			.catch(error => {
-				console.log(error.message)
-				Toast.show({ type: 'error', text1: 'Error (Get Boards local)', text2: error.message })
-			});
-		// Get Tiles
-		await db.getAllAsync('SELECT t.id, id_board, num_tile, pos_x, pos_y, tile_type, rotation, radius, border_width, tt.effect_name, direction FROM tiles t INNER JOIN tile_types tt ON t.tile_type=tt.id ORDER BY id_board, num_tile')
-			.then(data => {
-				//console.log(`Tiles: ${data.length}`)
-				setTiles(data as TileType[])
-			})
-			.catch(error => {
-				console.log(error.message)
-				Toast.show({ type: 'error', text1: 'Error (Get Tiles local)', text2: error.message })
-			});
-		// Get Tile Types
-		await db.getAllAsync('SELECT id, effect_name, color_fill, color_border, color_path1, color_path2, path1, path2, paths_x, paths_y, paths_scale FROM tile_types ORDER BY id')
-			.then(data => {
-				//console.log(`Tile Types: ${data.length}`)
-				setTileTypes(data as EffectType[])
-			})
-			.catch(error => {
-				console.log(error.message)
-				Toast.show({ type: 'error', text1: 'Error (Get Tile Types local)', text2: error.message })
-			});
-
-		// Get Dices
-		await db.getAllAsync('SELECT id, dice_name, color_faceup, color_faceleft, color_faceright, color_dots, color_border, border_width, scale FROM dices ORDER BY id')
-			.then(data => {
-				//console.log(`Dices: ${data.length}`)
-				setDices(data as DiceType[])
-			})
-			.catch(error => {
-				console.log(`dices: ${error.message}`)
-				Toast.show({ type: 'error', text1: 'Error (Get Dices local)', text2: error.message })
-			});
-
-		setIsDbLoaded(true);
-		//await db.closeAsync();
-		if (userRow.is_admin)
-			Toast.show({ type: 'success', text1: 'Sync Local DB', text2: "Base de datos local sincronizada" })
 	}
 
 	if (isLoading) return (
@@ -180,11 +133,6 @@ export default function Start() {
 					<TouchableOpacity onPress={() => setIsCfgModalVisible(true)} disabled={!isDbLoaded}>
 						<Icon name='settings' size={40} color={isDbLoaded ? isDarkMode ? 'lightgray' : 'steelblue' : 'gray'} />
 					</TouchableOpacity>
-					{userRow.is_admin &&
-						<TouchableOpacity onPress={() => setIsModalVisible(true)} >
-							<Icon name='link' size={40} color={'gray'} />
-						</TouchableOpacity>}
-
 				</View>
 			</View>
 			<View style={styles.buttonsContainer}>
@@ -228,7 +176,6 @@ export default function Start() {
 					</G>
 				</Svg>
 			</View>
-			<ModalConfigAPI isModalVisible={isModalVisible} handleModalClose={handleCloseModal} />
 			<ModalConfig
 				isModalVisible={isCfgModalVisible}
 				handleModalClose={handleCloseCfgModal}
@@ -238,6 +185,8 @@ export default function Start() {
 				dices={dices}
 				currIsDarkMode={isDarkMode}
 				currFontScale={fontScale}
+				allowCloudSync={allowCloudSync}
+				lastUpdate={lastRemoteUpdate}
 			/>
 		</View>
 	)

@@ -36,7 +36,6 @@ import Loading from '@/components/Loading';
 const playerColors = gameItems.playerColors;
 const wireScaleColor = { fill: 'green', border: 'black' };
 const ladderColor = { base: 'sandybrown', rung: 'saddlebrown' };
-const playerIdxOffSet = [{ x: -5, y: 0 }, { x: 5, y: 0 }, { x: -3, y: -3 }, { x: 3, y: -3 }, { x: -3, y: 3 }, { x: 3, y: 3 }]
 
 export default function BoardGame() {
 	const InitCallHour = new Date()
@@ -265,6 +264,7 @@ export default function BoardGame() {
 	// no cuando el callback se recrea por cambios en playersState/currentPlayerIndex.
 	const handlePlayerMoveCompleteRef = useRef(handlePlayerMoveComplete);
 	useEffect(() => { handlePlayerMoveCompleteRef.current = handlePlayerMoveComplete; }, [handlePlayerMoveComplete]);
+
 	const stableOnMoveComplete = useCallback((tile: number, id: number) => {
 		handlePlayerMoveCompleteRef.current(tile, id);
 	}, []);
@@ -624,7 +624,7 @@ export default function BoardGame() {
 								initialTile={player.currentTile}
 								scale={0.8}
 								color={player.color}
-								offSet={{ x: player.currentTile === 0 ? idx * 40 : -15 + playerIdxOffSet[idx].x, y: -30 + playerIdxOffSet[idx].y }}
+								playerIndex={idx}
 								onMoveComplete={stableOnMoveComplete}
 								tilesCoords={allTilesCoords}
 							/>
@@ -731,6 +731,8 @@ export default function BoardGame() {
 				dices={dices}
 				currIsDarkMode={isDarkMode}
 				currFontScale={fontScale}
+				allowCloudSync={false}
+				lastUpdate={[]}
 			/>
 		</View>
 	)

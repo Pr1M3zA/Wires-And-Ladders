@@ -8,7 +8,7 @@ export default defineConfig({
     tailwindcss(), 
     react()
   ],
-  base: '/wladmin/', // <-- Add this line
+  base: '/',
   build: {
     outDir: 'dist', // Default output directory
   },

@@ -1,17 +1,13 @@
 import nodemailer from 'nodemailer';
-import express from "express";
+import { Router } from "express";
 import cors from 'cors'
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { connect } from './../db.js'
 
-const app = express();
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(cors({origin: '*'}));
-app.options('*', cors()); // responder preflight
+const routeGame = Router();
 
-app.get('/users', async (req, res) => {
+routeGame.get('/users', async (req, res) => {
 	let db;
 	try {
 		db = await connect();
@@ -26,7 +22,7 @@ app.get('/users', async (req, res) => {
 });
 
 
-app.get('/user', checkToken, async (req, res) => {
+routeGame.get('/user', checkToken, async (req, res) => {
 	let db;
 	try {
 		//console.log(req.params)
@@ -44,7 +40,7 @@ app.get('/user', checkToken, async (req, res) => {
 });
 
 
-app.post('/user', async (req, res) => {
+routeGame.post('/user', async (req, res) => {
 	//console.log('add user')
 	let db;
 	const saltRounds = 10;
@@ -64,7 +60,7 @@ app.post('/user', async (req, res) => {
 });
 
 
-app.put('/user', checkToken, async (req, res) => {
+routeGame.put('/user', checkToken, async (req, res) => {
 	let db;
 	try {
 		db = await connect();
@@ -86,7 +82,7 @@ app.put('/user', checkToken, async (req, res) => {
 	}
 });
 
-app.post('/login', async (req, res) => {
+routeGame.post('/login', async (req, res) => {
 	let db;
 	try {
 		const { identifier, password } = req.body
@@ -112,7 +108,7 @@ app.post('/login', async (req, res) => {
 	}
 });
 
-app.post('/send-reset-code', async (req, res) => {
+routeGame.post('/send-reset-code', async (req, res) => {
 	let db;
 	const saltRounds = 10;
 	try {
@@ -163,9 +159,9 @@ app.post('/send-reset-code', async (req, res) => {
 					<p><strong>Wires and Ladders</strong></p>
 					`,
 			};
-			
+
 			// Send the email
-			transporter.sendMail(mailOptions, function(error, info){
+			transporter.sendMail(mailOptions, function (error, info) {
 				if (error) {
 					console.log('Error:', error);
 					throw new Error(error)
@@ -188,7 +184,7 @@ app.post('/send-reset-code', async (req, res) => {
 });
 
 
-app.post('/verify-reset-code', async (req, res) => {
+routeGame.post('/verify-reset-code', async (req, res) => {
 	let db;
 	try {
 		const { identifier, code } = req.body
@@ -216,7 +212,7 @@ app.post('/verify-reset-code', async (req, res) => {
 
 
 
-app.post('/reset-password', checkToken, async (req, res) => {
+routeGame.post('/reset-password', checkToken, async (req, res) => {
 	let db;
 	const saltRounds = 10;
 	try {
@@ -234,7 +230,7 @@ app.post('/reset-password', checkToken, async (req, res) => {
 });
 
 
-app.post('/game-stats', checkToken, async (req, res) => {
+routeGame.post('/game-stats', checkToken, async (req, res) => {
 	let db;
 	try {
 		db = await connect();
@@ -244,7 +240,7 @@ app.post('/game-stats', checkToken, async (req, res) => {
 		const [result] = await db.execute(query);
 		const gameLogId = result.insertId;
 		for (const player of players) {
-			if(player.dbUserId > 0) {  // Ignoramos a los guest
+			if (player.dbUserId > 0) {  // Ignoramos a los guest
 				let idPlatform = 1; // ios
 				if (player.platform === 'android') idPlatform = 2; // android
 				if (player.platform === 'web') idPlatform = 3; // web
@@ -254,7 +250,7 @@ app.post('/game-stats', checkToken, async (req, res) => {
 				await db.execute(query);
 			}
 		}
-		res.status(200).json({message: 'Juego registrado correctamente'})
+		res.status(200).json({ message: 'Juego registrado correctamente' })
 	} catch (err) {
 		//console.log(err)
 		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
@@ -264,7 +260,7 @@ app.post('/game-stats', checkToken, async (req, res) => {
 
 });
 
-app.post('/education', checkToken, async (req, res) => {
+routeGame.post('/education', checkToken, async (req, res) => {
 	let db;
 	try {
 		db = await connect();
@@ -273,7 +269,7 @@ app.post('/education', checkToken, async (req, res) => {
 		const query = `INSERT INTO education (generation, theme, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok) 
 						VALUES (${generation}, '${theme}', '${information}', '${question}', '${answer_1}', '${answer_2}', '${answer_3}', '${answer_4}', ${answer_ok})`;
 		const [result] = await db.execute(query);
-		res.status(200).json({message: 'Datos educativos agregados correctamente', id: result.insertId})
+		res.status(200).json({ message: 'Datos educativos agregados correctamente', id: result.insertId })
 	} catch (err) {
 		//console.log(err)
 		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
@@ -283,7 +279,7 @@ app.post('/education', checkToken, async (req, res) => {
 
 });
 
-app.put('/education', checkToken, async (req, res) => {
+routeGame.put('/education', checkToken, async (req, res) => {
 	let db;
 	try {
 		db = await connect();
@@ -291,7 +287,7 @@ app.put('/education', checkToken, async (req, res) => {
 		//let query = `CALL SP_EDIT_EDUCATION_DATA(${id}, ${generation}, '${theme}', '${information}', '${question}', '${answer_1}', '${answer_2}', '${answer_3}', '${answer_4}', ${answer_ok})`;
 		const query = `UPDATE education SET theme='${theme}', information='${information}', question='${question}', answer_1='${answer_1}', answer_2='${answer_2}', answer_3='${answer_3}', answer_4='${answer_4}', answer_ok=${answer_ok} WHERE id=${id}`;
 		const [result] = await db.execute(query);
-		res.status(200).json({message: 'Datos educativos modificados correctamente'})
+		res.status(200).json({ message: 'Datos educativos modificados correctamente' })
 	} catch (err) {
 		//console.log(err)
 		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
@@ -300,13 +296,13 @@ app.put('/education', checkToken, async (req, res) => {
 	}
 });
 
-app.delete('/education/:id', checkToken, async (req, res) => {
+routeGame.delete('/education/:id', checkToken, async (req, res) => {
 	let db;
 	try {
 		db = await connect();
 		const query = `DELETE FROM education WHERE id = ${req.params.id}`;
 		const [result] = await db.execute(query);
-		res.status(200).json({message: 'Datos educativos eliminados correctamente'})
+		res.status(200).json({ message: 'Datos educativos eliminados correctamente' })
 	} catch (err) {
 		//console.log(err)
 		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
@@ -339,4 +335,4 @@ function checkToken(req, res, next) {
 	}
 }
 
-export { app }
+export { routeGame }

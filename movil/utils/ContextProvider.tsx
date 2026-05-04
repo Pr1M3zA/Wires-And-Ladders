@@ -75,7 +75,9 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 	const [shortcuts, setShortcuts] = useState<ShortCutType[]>([]);
 	const [dices, setDices] = useState<DiceType[]>([]);
 	const [apiURL, setApiURL] = useState('https://wires-and-ladders-api.vercel.app');
+	///const [apiURL, setApiURL] = useState('http://192.168.68.114:3000');
 	const [socketURL, setSocketURL] = useState('https://wires-and-ladders-websocket.onrender.com');
+	///const [socketURL, setSocketURL] = useState('http://192.168.68.114:3005');
 	const [isDarkMode, setIsDarkMode] = useState(false);
 	const [fontScale, setFontScale] = useState(1);
 
@@ -116,14 +118,11 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 		saveFontScale();
 	}, [fontScale]);
 
-	//const apiURL = 'https://wires-and-ladders-api.vercel.app';   
-	//const socketURL = 'https://wires-and-ladders-socket.onrender.com';	 
-
 	return (
 		<Context.Provider value={{
-			token, setToken, idUser, setIdUser, userRow, setUserRow, playingUsers, setPlayingUsers,
+			token, setToken, idUser, setIdUser, userRow, setUserRow, playingUsers, setPlayingUsers, isDarkMode, setIsDarkMode, fontScale, setFontScale,
 			defBoard, setDefBoard, defDice, setDefDice, boards, setBoards, tiles, setTiles, shortcuts, setShortcuts, tileTypes, setTileTypes, dices, setDices,
-			apiURL, socketURL, setApiURL, setSocketURL, socket, setSocket, isDarkMode, setIsDarkMode, fontScale, setFontScale
+			apiURL, socketURL, setApiURL, setSocketURL, socket, setSocket
 		}}>
 			{children}
 		</Context.Provider>

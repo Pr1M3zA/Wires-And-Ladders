@@ -7,25 +7,21 @@ import runningEffectSrc from '@/assets/sounds/cartoon-running-footsteps.mp3';
 
 interface playerProps {
 	playerId: number; // ID del jugador para identificarlo en el callback
-	//playerName: string;
+	playerIndex: number; // Índice del jugador (0-5) para calcular separación en la salida
 	initialTile: number; //Casilla inicial del jugador    
 	targetTile: number;
 	scale: number;
 	color: { fill: string, border: string, eyes: string };
-	offSet: { x: number, y: number };
 	tilesCoords: { x: number, y: number }[]; // Array con las posiciones de todas las casillas
 	onMoveComplete?: (finalIndex: number, playerId: number) => void; // Callback when animation sequence finishes
-
 }
 const AnimatedG = Animated.createAnimatedComponent(G);
+const playerIdxOffSet = [{ x: -5, y: 0 }, { x: 5, y: 0 }, { x: -3, y: -3 }, { x: 3, y: -3 }, { x: -3, y: 3 }, { x: 3, y: 3 }]
+
+
 
 const Player: FC<playerProps> = (props) => {
 	const initialPos = props.initialTile < props.tilesCoords.length ? props.tilesCoords[props.initialTile] : { x: 0, y: 0 };
-	/*
-	const initialPos = {
-		x: basePos.x + props.offSet.x,
-		y: basePos.y + props.offSet.y
-	};*/
 	const animatedX = useSharedValue(initialPos.x);
 	const animatedY = useSharedValue(initialPos.y);
 	const currentTile = useSharedValue(props.initialTile);
@@ -34,6 +30,12 @@ const Player: FC<playerProps> = (props) => {
 	const { playingUsers } = useContextProvider();
 
 	const playerInfo = playingUsers.findIndex(p => p.id === props.playerId);
+
+	// Calcula un desplazamiento dependiendo de si la casilla es la 0 (salida) o cualquier otra
+	const getOffset = (tileIndex: number) => {
+		if (tileIndex === 0) return { x: props.playerIndex * 40, y: 0 };
+		return { x: -15 + playerIdxOffSet[props.playerIndex].x, y: -30 + playerIdxOffSet[props.playerIndex].y };
+	};
 
 	useEffect(() => {
 		cancelAnimation(animatedX);
@@ -45,8 +47,9 @@ const Player: FC<playerProps> = (props) => {
 
 		if (fromTile === toTile) {
 			const targetPos = props.tilesCoords[toTile];
-			animatedX.value = targetPos.x + props.offSet.x;
-			animatedY.value = targetPos.y + props.offSet.y;
+			const offset = getOffset(toTile);
+			animatedX.value = targetPos.x + offset.x;
+			animatedY.value = targetPos.y + offset.y;
 			currentTile.value = toTile;
 			runningEffect.pause();
 			return;
@@ -54,11 +57,12 @@ const Player: FC<playerProps> = (props) => {
 		runningEffect.seekTo(0);
 		runningEffect.play();
 		const targetPos = props.tilesCoords[toTile];
+		const targetOffset = getOffset(toTile);
 
 		isAnimating.value = true;
 
-		animatedX.value = withTiming(targetPos.x + props.offSet.x, { duration: 500, easing: Easing.linear });
-		animatedY.value = withTiming(targetPos.y + props.offSet.y, { duration: 500, easing: Easing.linear },
+		animatedX.value = withTiming(targetPos.x + targetOffset.x, { duration: 500, easing: Easing.linear });
+		animatedY.value = withTiming(targetPos.y + targetOffset.y, { duration: 500, easing: Easing.linear },
 			(finished) => {
 				'worklet';
 				isAnimating.value = false;

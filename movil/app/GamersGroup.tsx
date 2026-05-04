@@ -83,7 +83,7 @@ export default function GamersGroup() {
 		});
 
 		// Eventos del servidor
-		newSocket.on('roomCreated', ({ roomCode, users, isCreator: creatorStatus }: { roomCode: string; users: UserInGroup[], isCreator: boolean }) => {
+		newSocket.on('roomCreated', ({ roomCode, users, isCreator: creatorStatus, serverPort }: { roomCode: string; users: UserInGroup[], isCreator: boolean, serverPort?: number }) => {
 			setCurrentRoomCode(roomCode);
 			setUsersInGroup(users);
 			setIsCreator(creatorStatus);
@@ -92,10 +92,10 @@ export default function GamersGroup() {
 			if (userRow.is_admin)
 				Toast.show({ type: 'info', text1: 'Sala creada', text2: `API SOCKETS (roomCreated): respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
 			else
-				Toast.show({ type: 'success', text1: 'Sala Creada', text2: `Código: ${roomCode}` });
+				Toast.show({ type: 'success', text1: 'Sala Creada', text2: `Código: ${roomCode} | Host: :${serverPort}` });
 		});
 
-		newSocket.on('joinedRoom', ({ roomCode, users }: { roomCode: string; users: UserInGroup[] }) => {
+		newSocket.on('joinedRoom', ({ roomCode, users, serverPort }: { roomCode: string; users: UserInGroup[], serverPort?: number }) => {
 			setCurrentRoomCode(roomCode);
 			setUsersInGroup(users);
 			setIsLoading(false);
@@ -103,7 +103,7 @@ export default function GamersGroup() {
 			if (userRow.is_admin)
 				Toast.show({ type: 'info', text1: 'Te uniste a la sala', text2: `API SOCKETS (joinedRoom): Respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
 			else
-				Toast.show({ type: 'success', text1: 'Te Uniste a la Sala', text2: `Código: ${roomCode}` });
+				Toast.show({ type: 'success', text1: 'Te Uniste a la Sala', text2: `Código: ${roomCode} | Host: :${serverPort}` });
 		});
 
 		newSocket.on('groupUpdate', ({ users, idBoard }: { users: UserInGroup[], idBoard: number }) => {

@@ -6,20 +6,20 @@ import wireladders from '../assets/wireladders-icon.svg';
 import cubes from '../assets/bottom-design.svg';
 
 const Login = () => {
-   const { state } = useEducationStore()
-   const [identifier, setIdentifier] = useState('')
-   const [password, setPassword] = useState('')
-   const { dbLogin } = useApiFetchs();
+	const { state } = useEducationStore()
+	const [identifier, setIdentifier] = useState('')
+	const [password, setPassword] = useState('')
+	const { dbLogin } = useApiFetchs();
 
-   const handleLogin = async (e: React.FormEvent) => {
-      e.preventDefault()
-      dbLogin(identifier, password);
-   }
+	const handleLogin = async (e: React.FormEvent) => {
+		e.preventDefault()
+		dbLogin(identifier, password);
+	}
 
-	if(state.token) return null;
+	if (state.token) return null;
 
-   return (
-      <div className="flex flex-col w-full h-screen md:flex-row">
+	return (
+		<div className="flex flex-col w-full h-screen md:flex-row">
 			{/* Left Side - Branding Section */}
 			<div className="flex flex-col md:w-2/5 w-full md:h-full h-fit  bg-wireladders-blue">
 				<div className="flex md:flex-col flex-row w-full md:items-center md:h-1/2 h-fit">
@@ -57,15 +57,15 @@ const Login = () => {
 							<input className="rounded-lg border-wireladders-dark-blue border-2 py-1 my-3 px-2"
 								id='identifier'
 								placeholder='Ingrese su usuario o email'
-								onChange={(e) => setIdentifier(e.target.value)} 
-								value={identifier} 
+								onChange={(e) => setIdentifier(e.target.value)}
+								value={identifier}
 								type="text"
 							/>
 							<input className="rounded-lg border-wireladders-dark-blue border-2 py-1 my-3 px-2"
 								id='password'
 								placeholder='Ingrese la contraseña'
-								onChange={(e) => setPassword(e.target.value)} 
-								value={password} 
+								onChange={(e) => setPassword(e.target.value)}
+								value={password}
 								type="password"
 							/>
 							<button type="submit" className="md:m-10 m-5 px-5 py-1 rounded bg-wireladders-blue text-white! font-bold">
@@ -79,7 +79,6 @@ const Login = () => {
 						<div className="w-1/6 h-2 mx-1 bg-wireladders-green"></div>
 						<div className="w-1/6 h-2 mx-1 bg-wireladders-yellow"></div>
 					</div>
-
 				</div>
 			</div>
 		</div>

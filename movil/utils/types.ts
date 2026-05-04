@@ -102,6 +102,7 @@ type GameBoardParams = {
 }
 
 type BoardBackgroundType = {
+	id: number,
 	background_name: string,
 	rect_width: number, rect_height: number,
 	color_rect: string, color_path1: string, color_path2: string,
@@ -113,6 +114,11 @@ type DbBoardType = {
 	board_name: string, board_description: string,
 	width: number, height: number,
 	education: number,
+}
+
+type LastUpdate = {
+	table_name: string,
+	last_update: string
 }
 
 type UserRowType = {
@@ -133,7 +139,7 @@ type PlayingUserType = {
 }
 
 export type {
-	BoardType, DiceType, EducationType, TileType, ShortCutType, EffectType,
+	BoardType, DiceType, EducationType, TileType, ShortCutType, EffectType, LastUpdate,
 	PlayerInfoFromLobby, PlayerGameState, GameOverallStats, GameBoardParams,
 	BoardBackgroundType, DbBoardType, UserRowType, PlayingUserType
 }

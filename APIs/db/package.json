@@ -1,12 +1,12 @@
 {
-  "name": "wiresandladdersapi",
+  "name": "wiresandladders-api",
   "version": "1.0.0",
-  "description": "Wires&Ladders API",
+  "description": "API para gestionar las partidas de Wires and Ladders",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon index.js",
-    "start": "node index.js"
+    "dev": "nodemon --env-file=.env index.js",
+    "start": "node --env-file=.env index.js"
   },
   "author": "",
   "license": "ISC",
