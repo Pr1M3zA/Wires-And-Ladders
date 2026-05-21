@@ -42,8 +42,8 @@ export default function Start() {
 		const remoteLastUpdate = await getRemoteLastUpdate(apiURL);
 		setLastRemoteUpdate(remoteLastUpdate);
 		const localLastUpdate = await AsyncStorage.getItem('LAST_LOCAL_DB_DATA_SYNC').catch(() => null);
-		if (remoteLastUpdate && localLastUpdate){
-			const maxRemoteUpdate = new Date(Math.max(...remoteLastUpdate.map(item => new Date(item.last_update).getTime())));	
+		if (remoteLastUpdate && localLastUpdate) {
+			const maxRemoteUpdate = new Date(Math.max(...remoteLastUpdate.map(item => new Date(item.last_update).getTime())));
 			if (maxRemoteUpdate > new Date(localLastUpdate)) {
 				setAllowCloudSync(true);
 				Toast.show({ type: 'info', text1: 'Actualización disponible', text2: 'Existen actualizaciones, obtenlas en Ajustes' })

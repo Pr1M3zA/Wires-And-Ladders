@@ -39,6 +39,9 @@ const ModalConfig: FC<modalCfgProps> = (props) => {
 	const [isSyncing, setIsSyncing] = useState(false);
 	const handleDiceSpinComplete = useCallback((diceValue: number) => { }, [])
 
+	useEffect(() => {
+		setAllowCloudSync(props.allowCloudSync)
+	}, [])
 
 	const prevDice = () => {
 		setIdxDice(idxDice === 0 ? props.dices.length - 1 : idxDice - 1);

@@ -98,7 +98,7 @@ routeGame.post('/login', async (req, res) => {
 		}
 		else
 			throw new Error('El usuario no existe');
-		const token = jwt.sign({ idUser }, process.env.SECRET, { expiresIn: '1d' })
+		const token = jwt.sign({ idUser }, process.env.SECRET)
 		res.status(200).json({ token: token })
 	} catch (err) {
 		return res.status(500).json({ message: err.message })

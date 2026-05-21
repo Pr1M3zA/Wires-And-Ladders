@@ -62,7 +62,7 @@ const Context = createContext<contextProps>({
 });
 
 export const ContextProvider: React.FC<providerProps> = ({ children }) => {
-	const [token, setToken] = useState('');
+	const [token, setTokenState] = useState('');
 	const [idUser, setIdUser] = useState(0);
 	const [userRow, setUserRow] = useState<UserRowType>({ id: 0, username: 'guest', first_name: 'Invitado', last_name: '', email: '', profile_image: null, is_admin: false });
 	const [playingUsers, setPlayingUsers] = useState<PlayingUserType[]>([]);
@@ -75,19 +75,35 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 	const [shortcuts, setShortcuts] = useState<ShortCutType[]>([]);
 	const [dices, setDices] = useState<DiceType[]>([]);
 	const [apiURL, setApiURL] = useState('https://wires-and-ladders-api.vercel.app');
-	///const [apiURL, setApiURL] = useState('http://192.168.68.114:3000');
+	//const [apiURL, setApiURL] = useState('http://192.168.68.100:3000');
 	const [socketURL, setSocketURL] = useState('https://wires-and-ladders-websocket.onrender.com');
-	///const [socketURL, setSocketURL] = useState('http://192.168.68.114:3005');
+	//const [socketURL, setSocketURL] = useState('http://192.168.68.100:3005');
+	//const [socketURL, setSocketURL] = useState('http://157.230.163.7:3005');
 	const [isDarkMode, setIsDarkMode] = useState(false);
 	const [fontScale, setFontScale] = useState(1);
+
+	const setToken = (newToken: string) => {
+		setTokenState(newToken);
+		if (newToken) {
+			AsyncStorage.setItem('userToken', newToken).catch(error => {
+				console.error('Error saving token:', error);
+			});
+		} else {
+			AsyncStorage.removeItem('userToken').catch(error => {
+				console.error('Error removing token:', error);
+			});
+		}
+	};
 
 	useEffect(() => {
 		const loadSettings = async () => {
 			try {
 				const darkMode = await AsyncStorage.getItem('isDarkMode');
 				const fScale = await AsyncStorage.getItem('fontScale');
+				const savedToken = await AsyncStorage.getItem('userToken');
 				if (darkMode !== null) setIsDarkMode(JSON.parse(darkMode));
 				if (fScale !== null) setFontScale(parseFloat(fScale));
+				if (savedToken !== null) setTokenState(savedToken);
 			} catch (error) {
 				console.error('Error loading settings:', error);
 			}

@@ -8,11 +8,11 @@ services:
     restart: always
     environment:
       - TZ=America/Mazatlan
-      - MYSQL_ROOT_PASSWORD=Abcd1234?!
+      - MYSQL_ROOT_PASSWORD=
       - MYSQL_ROOT_HOST= '%'
       - MYSQL_DATABASE=wires_and_ladders
       - MYSQL_USER=pris
-      - MYSQL_PASSWORD=Abcd1234?!
+      - MYSQL_PASSWORD=
     ports:
        - "3308:3306"
     volumes:
