@@ -11,12 +11,12 @@ interface designProps { allowRanking: boolean }
 const darkColors: { [key: string]: string } = UIElements.register.dark_colors;
 
 const BottomDesign: FC<designProps> = (props) => {
-   const { isDarkMode } = useContextProvider();
+	const { isDarkMode } = useContextProvider();
 	const { width, height } = Dimensions.get('window');
 	const router = useRouter();
 	return (
 		<View style={styles.designContainer}>
-			<View style={[styles.designTopContainer, { backgroundColor:  isDarkMode ? '#1F3344' : 'white' }]}>
+			<View style={[styles.designTopContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
 				<View style={styles.cubesContainer}>
 					<Svg height='100%' width='100%'>
 						<G scale={height * 0.2 * 0.00558} x={width - (352 * height * 0.2 * 0.00558 * 0.825)} y={height * 0.2 * 0.0702}>
@@ -35,9 +35,9 @@ const BottomDesign: FC<designProps> = (props) => {
 
 			<View style={styles.designBottomContainer}>
 				{props.allowRanking &&
-				<TouchableOpacity onPress={() => router.navigate('/Ranking')} style={styles.rankingButton}>
-					<Icon name={'ranking-star'} size={32} color={'goldenrod'} />
-				</TouchableOpacity>}
+					<TouchableOpacity onPress={() => router.navigate('/Ranking')} style={[styles.rankingButton, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]} >
+						<Icon name={'ranking-star'} size={32} color={'goldenrod'} />
+					</TouchableOpacity>}
 			</View>
 		</View>
 	)
