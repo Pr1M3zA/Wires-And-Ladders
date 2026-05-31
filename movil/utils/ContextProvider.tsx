@@ -78,7 +78,7 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 	//const [apiURL, setApiURL] = useState('http://192.168.68.100:3000');
 	//const [socketURL, setSocketURL] = useState('https://wires-and-ladders-websocket.onrender.com');
 	//const [socketURL, setSocketURL] = useState('http://192.168.68.100:3005');
-	const [socketURL, setSocketURL] = useState('http://157.230.163.7:3005');
+	const [socketURL, setSocketURL] = useState('https://wiresandladders.duckdns.org');
 	const [isDarkMode, setIsDarkMode] = useState(false);
 	const [fontScale, setFontScale] = useState(1);
 
