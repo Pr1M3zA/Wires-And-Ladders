@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   web:
     build:
@@ -8,8 +6,8 @@ services:
         - VITE_API_URL=https://wires-and-ladders-api.vercel.app
     container_name: web_app
     restart: always
-    ports:
-      - "8080:80"
+    #ports:
+      #- "8080:80"
     networks:
       - wl_network
 
@@ -24,7 +22,7 @@ services:
 
   wl-sockets-api-1:
     build: ./APIs/socket
-    container_name: wl-sockets-api-1 
+    container_name: wl-sockets-api-1
     restart: always
     env_file: ./APIs/socket/.dockerenv1
     ports:
@@ -52,11 +50,15 @@ services:
     restart: always
     ports:
       - "3005:3005"
+      - "443:443"
+      - "80:80"
     volumes:
       - ./APIs/socket/nginx.conf:/etc/nginx/nginx.conf
+      - /etc/letsencrypt:/etc/letsencrypt
     depends_on:
       - wl-sockets-api-1
       - wl-sockets-api-2
+      - web
     networks:
       - wl_network
 
