@@ -1,234 +1,8 @@
-import nodemailer from 'nodemailer';
 import { Router } from "express";
-import cors from 'cors'
-import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { connect } from './../db.js'
 
 const routeGame = Router();
-
-routeGame.get('/users', async (req, res) => {
-	let db;
-	try {
-		db = await connect();
-		const [rows] = await db.query('SELECT username, first_name, last_name, email, password, activo FROM users');
-		res.status(200).json(rows);
-	} catch (err) {
-		//console.error('Ocurrió un error al obtener los usuarios');
-		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
-	} finally {
-		if (db) await db.end();
-	}
-});
-
-
-routeGame.get('/user', checkToken, async (req, res) => {
-	let db;
-	try {
-		//console.log(req.params)
-		db = await connect();
-		const query = `SELECT id, username, first_name, last_name, email, profile_image, IFNULL(isAdmin,0) isAdmin, id_dice, id_board FROM users WHERE id=${req.idUser}`;
-		const [userRow] = await db.execute(query);
-		if (userRow.length === 0)
-			throw new Error('No se encontró el usuario');
-		res.status(200).json({ userRow })
-	} catch (err) {
-		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
-	} finally {
-		if (db) await db.end();
-	}
-});
-
-
-routeGame.post('/user', async (req, res) => {
-	//console.log('add user')
-	let db;
-	const saltRounds = 10;
-	try {
-		db = await connect();
-		const { username, first_name, last_name, email, password, profile_image } = req.body;
-		const hashPassword = bcrypt.hashSync(password, saltRounds);
-		const query = `CALL SP_CREATE_USER('${username}', '${first_name}', '${last_name}', '${email}', '${hashPassword}', '${profile_image}')`;
-		const [result] = await db.execute(query);
-		res.status(200).json(result)
-	} catch (err) {
-		//console.log(err)
-		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
-	} finally {
-		if (db) await db.end();
-	}
-});
-
-
-routeGame.put('/user', checkToken, async (req, res) => {
-	let db;
-	try {
-		db = await connect();
-		const { first_name, last_name, password, profile_image } = req.body;
-		const idUser = req.idUser;
-		let query = `UPDATE users SET first_name='${first_name}', last_name='${last_name}', profile_image='${profile_image}'`
-		if (password.length > 0) {
-			const saltRounds = 10;
-			const hashPassword = bcrypt.hashSync(password, salt)
-			query += `, password='${hashPassword}'`
-		}
-		query += ` WHERE id=${idUser}`
-		const [result] = await db.execute(query);
-		res.status(200).json(result)
-	} catch (err) {
-		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
-	} finally {
-		if (db) await db.end();
-	}
-});
-
-routeGame.post('/login', async (req, res) => {
-	let db;
-	try {
-		const { identifier, password } = req.body
-		db = await connect();
-		let idUser = 0;
-		const query = `SELECT id, password FROM users WHERE username ='${identifier}' OR email='${identifier}'`;
-		const [rows] = await db.execute(query);
-		if (rows.length > 0) {
-			if (bcrypt.compareSync(password, rows[0].password))
-				idUser = rows[0].id
-			else
-				throw new Error('Contraseña incorrecta');
-		}
-		else
-			throw new Error('El usuario no existe');
-		const token = jwt.sign({ idUser }, process.env.SECRET)
-		res.status(200).json({ token: token })
-	} catch (err) {
-		return res.status(500).json({ message: err.message })
-	} finally {
-		if (db)
-			db.end();
-	}
-});
-
-routeGame.post('/send-reset-code', async (req, res) => {
-	let db;
-	const saltRounds = 10;
-	try {
-		const { identifier } = req.body
-		db = await connect();
-		let idUser = 0, email = '';
-		const query = `SELECT id, first_name, last_name, email FROM users WHERE username ='${identifier}' OR email='${identifier}'`;
-		const [rows] = await db.execute(query);
-		if (rows.length > 0) {
-			idUser = rows[0].id
-			email = rows[0].email
-			const code = makeCode()
-
-			// Create a transporter object
-			const transporter = nodemailer.createTransport({
-				service: 'gmail',
-				auth: {
-					user: process.env.MAIL_ACCOUNT,
-					pass: process.env.MAIL_APP_PASSWORD,
-					/*type: 'OAuth2',
-					clientId: process.env.MAIL_CLIENT_ID,
-					clientSecret: process.env.MAIL_CLIENT_SECRET,
-					refreshToken: process.env.MAIL_REFRESH_TOKEN,*/
-				}
-			});
-			console.log(transporter.host, transporter.port, transporter.options.auth.user, transporter.options.auth.pass)
-
-			// Configure the mailoptions object
-			const mailOptions = {
-				from: `Wires and Ladder Support <${process.env.MAIL_ACCOUNT}>`,
-				to: email,
-				subject: 'Recuperación de Contraseña - Wires and Ladder',
-				html: `
-					<p>Estimado(a) ${rows[0].first_name}:</p>
-					<p></p>
-					<p>Ha recibido este correo, ya que solicitó recuperar la contraseña de nuestra aplicación 
-							<strong>Wires and Ladders</strong>
-					</p>
-					<p></p>
-					<p>A continuación, le proporcionamos el código que deberá ingresar en la aplicación en la sección de recuperación de contraseña:</p>
-					<p></p>
-					<h1><strong><center>${code}</center></strong></h1>
-					<p></p>
-					<p>Luego de introducir el código, podrá establecer una nueva contraseña.</p>
-					<p></p>
-					<p>Saludos cordiales!</p>
-					<p></p>
-					<p><strong>Wires and Ladders</strong></p>
-					`,
-			};
-
-			// Send the email
-			transporter.sendMail(mailOptions, function (error, info) {
-				if (error) {
-					console.log('Error:', error);
-					throw new Error(error)
-				} else {
-					console.log('Email sent: ', info.response);
-				}
-			});
-			const hashedCode = bcrypt.hashSync(code, saltRounds);
-			await db.execute(`UPDATE users SET code_pass_recover = '${hashedCode}' WHERE id = ${idUser}`)
-			res.status(200).json({ email: email, message: 'Codigo enviado correctamente al correo electrónico' })
-		}
-		else
-			res.status(404).json({ message: 'El usuario no existe' })
-	} catch (err) {
-		return res.status(500).json(err)
-	} finally {
-		if (db)
-			db.end();
-	}
-});
-
-
-routeGame.post('/verify-reset-code', async (req, res) => {
-	let db;
-	try {
-		const { identifier, code } = req.body
-		db = await connect();
-		let idUser = 0;
-		const query = `SELECT id, IFNULL(code_pass_recover, 'nocode') code_pass_recover FROM users WHERE username ='${identifier}' OR email='${identifier}'`;
-		const [rows] = await db.execute(query);
-		if (rows.length > 0) {
-			if (!bcrypt.compareSync(code, rows[0].code_pass_recover))
-				res.status(401).json({ message: 'Código de recuperación incorrecto' })
-			else
-				idUser = rows[0].id
-			const token = jwt.sign({ idUser }, process.env.SECRET, { expiresIn: '1d' })
-			res.status(200).json({ token: token })
-		}
-		else
-			res.status(404).json({ message: 'El usuario no existe' })
-	} catch (err) {
-		return res.status(500).json({ message: err.message })
-	} finally {
-		if (db)
-			db.end();
-	}
-});
-
-
-
-routeGame.post('/reset-password', checkToken, async (req, res) => {
-	let db;
-	const saltRounds = 10;
-	try {
-		db = await connect();
-		const { newPassword } = req.body;
-		const hashPassword = bcrypt.hashSync(newPassword, saltRounds);
-		const [result] = await db.execute(`UPDATE users SET password = '${hashPassword}' WHERE id = ${req.idUser}`);
-		res.status(200).json(result)
-	} catch (err) {
-		//console.log(err)
-		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
-	} finally {
-		if (db) await db.end();
-	}
-});
-
 
 routeGame.post('/game-stats', checkToken, async (req, res) => {
 	let db;
@@ -260,65 +34,72 @@ routeGame.post('/game-stats', checkToken, async (req, res) => {
 
 });
 
-routeGame.post('/education', checkToken, async (req, res) => {
+routeGame.get('/board-backgrounds/:id', async (req, res) => {
 	let db;
 	try {
 		db = await connect();
-		const { id, generation, theme, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok } = req.body;
-		//let query = `CALL SP_ADD_EDUCATION_DATA('${generation}', '${theme}', '${information}', '${question}', '${answer_1}', '${answer_2}', '${answer_3}', '${answer_4}', ${answer_ok}, ${id})`;
-		const query = `INSERT INTO education (generation, theme, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok) 
-						VALUES (${generation}, '${theme}', '${information}', '${question}', '${answer_1}', '${answer_2}', '${answer_3}', '${answer_4}', ${answer_ok})`;
-		const [result] = await db.execute(query);
-		res.status(200).json({ message: 'Datos educativos agregados correctamente', id: result.insertId })
+		const [rows] = await db.query(`SELECT id, background_name, rect_width, rect_height, color_rect, color_path1, color_path2, path1, path2 FROM board_backgrounds WHERE id= ${req.params.id}'`);
+		res.status(200).json(rows);
 	} catch (err) {
-		//console.log(err)
-		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
-	} finally {
-		if (db) await db.end();
-	}
-
-});
-
-routeGame.put('/education', checkToken, async (req, res) => {
-	let db;
-	try {
-		db = await connect();
-		const { id, generation, theme, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok } = req.body;
-		//let query = `CALL SP_EDIT_EDUCATION_DATA(${id}, ${generation}, '${theme}', '${information}', '${question}', '${answer_1}', '${answer_2}', '${answer_3}', '${answer_4}', ${answer_ok})`;
-		const query = `UPDATE education SET theme='${theme}', information='${information}', question='${question}', answer_1='${answer_1}', answer_2='${answer_2}', answer_3='${answer_3}', answer_4='${answer_4}', answer_ok=${answer_ok} WHERE id=${id}`;
-		const [result] = await db.execute(query);
-		res.status(200).json({ message: 'Datos educativos modificados correctamente' })
-	} catch (err) {
-		//console.log(err)
-		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
 	} finally {
 		if (db) await db.end();
 	}
 });
 
-routeGame.delete('/education/:id', checkToken, async (req, res) => {
+routeGame.get('/boards', async (req, res) => {
 	let db;
 	try {
 		db = await connect();
-		const query = `DELETE FROM education WHERE id = ${req.params.id}`;
-		const [result] = await db.execute(query);
-		res.status(200).json({ message: 'Datos educativos eliminados correctamente' })
+		const [rows] = await db.query(`SELECT b.id, board_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2 FROM boards b INNER JOIN board_backgrounds bb ON b.id_background=bb.id ORDER BY b.id`);
+		res.status(200).json(rows);
 	} catch (err) {
-		//console.log(err)
-		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
 	} finally {
 		if (db) await db.end();
 	}
 });
 
-function makeCode() {
-	let codigo = '';
-	for (let i = 0; i < 5; i++) {
-		const ascii = Math.floor(Math.random() * (90 - 65 + 1)) + 65;
-		codigo += String.fromCharCode(ascii);
+routeGame.get('/boards/:id', async (req, res) => {
+	let db;
+	try {
+		db = await connect();
+		const [rows] = await db.query(`SELECT b.id, board_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2 FROM boards b INNER JOIN board_backgrounds bb ON b.id_background=bb.id WHERE b.id = ${req.params.id}`);
+		res.status(200).json(rows[0] || null);
+	} catch (err) {
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
 	}
-	return codigo;
-}
+});
+
+routeGame.get('/tiles/:idboard', async (req, res) => {
+	let db;
+	try {
+		db = await connect();
+		const [rows] = await db.query(`SELECT t.id, id_board, num_tile, pos_x, pos_y, tile_type, rotation, radius, border_width, direction, tt.effect_name FROM tiles t INNER JOIN tile_types tt ON t.tile_type=tt.id WHERE t.id_board = ${req.params.idboard} ORDER BY num_tile`);
+		res.status(200).json(rows);
+	} catch (err) {
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
+
+routeGame.get('/shortcuts/:idboard', async (req, res) => {
+	let db;
+	try {
+		db = await connect();
+		const [rows] = await db.query(`SELECT id, id_board, from_tile, to_tile FROM shortcuts WHERE id_board = ${req.params.idboard}`);
+		res.status(200).json(rows);
+	} catch (err) {
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
+
+
 
 function checkToken(req, res, next) {
 	const token = req.headers['authorization'];
@@ -335,4 +116,4 @@ function checkToken(req, res, next) {
 	}
 }
 
-export { routeGame }
+export { routeGame, checkToken }

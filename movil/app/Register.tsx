@@ -7,7 +7,7 @@ import { ActivityIndicator, Image, StyleSheet, Text, TextInput, TouchableOpacity
 import BottomDesign from '@/components/BottomDesign';
 import Toast from 'react-native-toast-message';
 import { useContextProvider } from '@/utils/ContextProvider'
-import { getHour } from '@/utils/utils';
+//import { getHour } from '@/utils/utils';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
 
 const Gato = require('@/assets/images/GatoSalvaje.webp');
@@ -58,7 +58,7 @@ export default function Register() {
 
 	const getUserData = async () => {
 		setLoading(true);
-		await fetch(apiURL + '/user', {
+		await fetch(apiURL + '/users/user', {
 			method: 'GET',
 			headers: {
 				'Content-Type': 'application/json',
@@ -91,7 +91,7 @@ export default function Register() {
 			sizeOk = base64img.length < IMAGE_SIZE_LIMIT;
 		}
 		if (sizeOk) {
-			await fetch(apiURL + '/user', {
+			await fetch(apiURL + '/users/user', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -138,7 +138,7 @@ export default function Register() {
 		let base64img = null;
 		if (image != Image.resolveAssetSource(Gato).uri)
 			base64img = await FileSystem.readAsStringAsync(image, { encoding: FileSystem.EncodingType.Base64 });
-		await fetch(apiURL + '/user', {
+		await fetch(apiURL + '/users/user', {
 			method: 'PUT',
 			headers: {
 				'Content-Type': 'application/json',

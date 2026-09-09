@@ -38,7 +38,7 @@ export const BoardProvider = ({ children }: Props) => {
   const [tileTypes, setTileTypes] = useState<EffectType[]>([]);
   const [shortcuts, setShortcuts] = useState<ShortCutType[]>([]);
   const [dices, setDices] = useState<DiceType[]>([]);
-  const [playingUsers, setPlayingUsers] = useState<PlayingUserType[]>([{ id: 1, username: 'JLMeza', profile_image: null, socketId: '123' }]);
+  const [playingUsers, setPlayingUsers] = useState<PlayingUserType[]>([{ id: 1, username: 'wires&ladders', profile_image: null, socketId: '123' }]);
 
 
   return (

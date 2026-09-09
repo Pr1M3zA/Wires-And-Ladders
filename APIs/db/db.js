@@ -8,7 +8,7 @@ async function connect() {
             password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME
         });
-        console.log('Conexion a la bd establecida: ', process.env.DB_HOST);
+        //console.log('Conexion a la bd establecida: ', process.env.DB_HOST);
         return conn;
     } catch (err) {
         console.error('Ocurrió un error al realizar la conexión con la bd');

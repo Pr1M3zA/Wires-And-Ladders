@@ -1,84 +1,90 @@
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Platform, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useContextProvider } from '@/utils/ContextProvider';
 import Svg, { Circle, G, Rect } from 'react-native-svg';
 import Icon from '@expo/vector-icons/Feather';
 import Cube from '@/components/Cube'
 import Figure from '@/components/Figure';
 import * as UIElements from '@/utils/ui-elements.json';
-import { SyncBoardData, loadLocalDbData, getRemoteLastUpdate } from '@/utils/db';
-import Loading from '@/components/Loading';
-import Toast from 'react-native-toast-message';
-import * as SQLite from 'expo-sqlite';
+//import { SyncBoardData, loadLocalDbData, getRemoteLastUpdate } from '@/utils/db';
+//import Loading from '@/components/Loading';
+//import Toast from 'react-native-toast-message';
+//import * as SQLite from 'expo-sqlite';
 import ModalConfig from '@/components/ModalConfig';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { LastUpdate } from '@/utils/types';
+import { getDices, getTileTypes } from '@/utils/fetchAndSet';
+//import AsyncStorage from '@react-native-async-storage/async-storage';
+//import type { LastUpdate } from '@/utils/types';
 
 const darkColors: { [key: string]: string } = UIElements.start.dark_colors;
 
 export default function Start() {
-	const { token, setToken, userRow, setUserRow, apiURL, setTileTypes, setTiles, setShortcuts, setBoards, setDices, isDarkMode, setIsDarkMode, fontScale, setFontScale, dices } = useContextProvider();
+	const { token, setToken, userRow, setUserRow, apiURL, isDarkMode, setIsDarkMode, fontScale, setFontScale, dices,
+		setTileTypes, setDices, setEduKnowledgeAreas, setEduDsciplines, setEduLevels } = useContextProvider();
 	const router = useRouter();
 	const [layoutBottom, setLayoutBottom] = useState({ x: 0, y: 0, width: 0, height: 0 });
 	const [layoutTop, setLayoutTop] = useState({ x: 0, y: 0, width: 0, height: 0 });
-	const [isLoading, setIsLoading] = useState(false);
+	//const [isLoading, setIsLoading] = useState(false);
 	const [isCfgModalVisible, setIsCfgModalVisible] = useState(false);
-	const [isDbLoaded, setIsDbLoaded] = useState(false);
+	//const [isDbLoaded, setIsDbLoaded] = useState(false);
 	const [volMusic, setVolMusic] = useState(1);
 	const [volEffects, setVolEffects] = useState(1);
 	const [idxDice, setIdxDice] = useState(0);	//const [forceSyncDb, setForceSyncDb] = useState(false)
+	useEffect(() => {
+		getDices(apiURL, setDices);
+		getTileTypes(apiURL, setTileTypes);
+	}, []);
 	const handleLayoutBottom = (event: any) => { setLayoutBottom(event.nativeEvent.layout) };
 	const handleLayoutTop = (event: any) => { setLayoutTop(event.nativeEvent.layout) };
-
-	const [lastRemoteUpdate, setLastRemoteUpdate] = useState<LastUpdate[]>([]);
-	const [allowCloudSync, setAllowCloudSync] = useState(false);
-
-	useEffect(() => {
-		checkAllowCloudSync()
-	}, [])
-
-	const checkAllowCloudSync = async () => {
-		const remoteLastUpdate = await getRemoteLastUpdate(apiURL);
-		setLastRemoteUpdate(remoteLastUpdate);
-		const localLastUpdate = await AsyncStorage.getItem('LAST_LOCAL_DB_DATA_SYNC').catch(() => null);
-		if (remoteLastUpdate && localLastUpdate) {
-			const maxRemoteUpdate = new Date(Math.max(...remoteLastUpdate.map(item => new Date(item.last_update).getTime())));
-			if (maxRemoteUpdate > new Date(localLastUpdate)) {
-				setAllowCloudSync(true);
-				Toast.show({ type: 'info', text1: 'Actualización disponible', text2: 'Existen actualizaciones, obtenlas en Ajustes' })
+	/*
+		const [lastRemoteUpdate, setLastRemoteUpdate] = useState<LastUpdate[]>([]);
+		const [allowCloudSync, setAllowCloudSync] = useState(false);
+	
+		useEffect(() => {
+			checkAllowCloudSync()
+		}, [])
+	
+		const checkAllowCloudSync = async () => {
+			const remoteLastUpdate = await getRemoteLastUpdate(apiURL);
+			setLastRemoteUpdate(remoteLastUpdate);
+			const localLastUpdate = await AsyncStorage.getItem('LAST_LOCAL_DB_SYNC').catch(() => null);
+			if (remoteLastUpdate && localLastUpdate) {
+				const maxRemoteUpdate = new Date(Math.max(...remoteLastUpdate.map(item => new Date(item.last_update).getTime())));
+				if (maxRemoteUpdate > new Date(localLastUpdate)) {
+					setAllowCloudSync(true);
+					Toast.show({ type: 'info', text1: 'Actualización disponible', text2: 'Existen actualizaciones, obtenlas en Ajustes' })
+				}
 			}
 		}
-	}
-
-	const SyncAndLoadDbData = async () => {
-		setIsLoading(true)
-		const InitCallHour = new Date()
-		const db = await SQLite.openDatabaseAsync('WiresAndLadders.db');
-		try {
-			const lastSyncDate = await AsyncStorage.getItem('LAST_LOCAL_DB_DATA_SYNC').catch(() => null);
-			if (!lastSyncDate) await SyncBoardData(db, apiURL, []);
-			await loadLocalDbData(db, { setTileTypes, setTiles, setShortcuts, setBoards, setDices })
-			setIsDbLoaded(true);
-			if (userRow.is_admin)
-				Toast.show({ type: 'success', text1: 'Local DB', text2: 'Base de datos local verificada y lista' })
-		} catch (error: any) {
-			console.log(error.message)
-			Toast.show({ type: 'error', text1: 'Error', text2: error.message })
-		} finally {
-			await db.closeAsync();
-
-			const EndCallHour = new Date();
-			if (userRow.is_admin)
-				Toast.show({ type: 'info', text1: 'DB local Sync', text2: `API GET: respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
-			setIsLoading(false)
+	
+		const SyncAndLoadDbData = async () => {
+			setIsLoading(true)
+			const InitCallHour = new Date()
+			const db = await SQLite.openDatabaseAsync('WiresAndLadders.db');
+			try {
+				const lastSyncDate = await AsyncStorage.getItem('LAST_LOCAL_DB_SYNC').catch(() => null);
+				if (!lastSyncDate) await SyncBoardData(db, apiURL, []);
+				await loadLocalDbData(db, { setTileTypes, setTiles, setShortcuts, setBoards, setDices, setEduKnowledgeAreas, setEduDsciplines, setEduLevels })
+				setIsDbLoaded(true);
+				if (userRow.is_admin)
+					Toast.show({ type: 'success', text1: 'Local DB', text2: 'Base de datos local verificada y lista' })
+			} catch (error: any) {
+				console.log(error.message)
+				Toast.show({ type: 'error', text1: 'Error', text2: error.message })
+			} finally {
+				await db.closeAsync();
+	
+				const EndCallHour = new Date();
+				if (userRow.is_admin)
+					Toast.show({ type: 'info', text1: 'DB local Sync', text2: `API GET: respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
+				setIsLoading(false)
+			}
+	
 		}
-
-	}
-	useEffect(() => {
-		SyncAndLoadDbData()
-	}, [])
-
+		useEffect(() => {
+			SyncAndLoadDbData()
+		}, [])
+	*/
 	const handleCloseCfgModal = (volEff: number, volMusica: number, idxDice: number, darkMode: boolean, fScale: number) => {
 		setIsCfgModalVisible(false);
 		setVolEffects(volEff);
@@ -90,13 +96,13 @@ export default function Start() {
 
 	const logOut = () => {
 		setToken('');
-		setUserRow({ id: 0, username: 'guest', first_name: 'Invitado', last_name: '', email: '', profile_image: null, is_admin: false });
+		setUserRow({ id: 0, username: 'guest', first_name: 'Invitado', last_name: '', email: '', profile_image: null, is_admin: false, id_board: 1, id_dice: 1, id_subtopic: 1 });
 	}
-
+	/*
 	if (isLoading) return (
 		<Loading />
 	)
-
+	*/
 	return (
 		<View style={[styles.container, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
 			<View style={styles.titleContainer} onLayout={handleLayoutTop}>
@@ -130,8 +136,8 @@ export default function Start() {
 					<Text style={[styles.titleText, { color: isDarkMode ? '#578BB6' : '#6599c3' }]}>Wires&Ladders</Text>
 				</View>
 				<View style={styles.titleSides}>
-					<TouchableOpacity onPress={() => setIsCfgModalVisible(true)} disabled={!isDbLoaded}>
-						<Icon name='settings' size={40} color={isDbLoaded ? isDarkMode ? 'lightgray' : 'steelblue' : 'gray'} />
+					<TouchableOpacity onPress={() => setIsCfgModalVisible(true)}>
+						<Icon name='settings' size={40} color={isDarkMode ? 'lightgray' : 'steelblue'} />
 					</TouchableOpacity>
 				</View>
 			</View>
@@ -185,8 +191,6 @@ export default function Start() {
 				dices={dices}
 				currIsDarkMode={isDarkMode}
 				currFontScale={fontScale}
-				allowCloudSync={allowCloudSync}
-				lastUpdate={lastRemoteUpdate}
 			/>
 		</View>
 	)

@@ -18,7 +18,7 @@ export default function VerifyCode() {
    const verifyCode = async () => {
       Keyboard.dismiss(); // Hide keyboard
       setLoading(true);
-      await fetch(apiURL + '/verify-reset-code', {
+      await fetch(apiURL + '/users/verify-reset-code', {
          method: 'POST',
          headers: {
             'Content-Type': 'application/json',

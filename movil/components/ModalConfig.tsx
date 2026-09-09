@@ -1,17 +1,11 @@
-import { FC, useState, useCallback, useEffect } from 'react'
+import { FC, useState, useCallback } from 'react'
 import { View, Text, Modal, StyleSheet, TouchableOpacity, Dimensions, Switch } from 'react-native'
 import Animated from 'react-native-reanimated';
 import Svg from 'react-native-svg';
 import Icon from '@expo/vector-icons/Feather';
-import AntDesign from '@expo/vector-icons/AntDesign';
 import Slider from '@react-native-community/slider';
 import Dice from '@/components/Dice';
 import type { DiceType } from '@/utils/types';
-import { useContextProvider } from '@/utils/ContextProvider';
-import { SyncBoardData, loadLocalDbData } from '@/utils/db';
-import * as SQLite from 'expo-sqlite';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { LastUpdate } from '@/utils/types';
 
 interface modalCfgProps {
 	isModalVisible: boolean,
@@ -21,27 +15,18 @@ interface modalCfgProps {
 	dices: DiceType[],
 	currIsDarkMode: boolean,
 	currFontScale: number,
-	allowCloudSync: boolean,
-	lastUpdate: LastUpdate[],
 	handleModalClose: (volEffects: number, volMusic: number, idxDice: number, isDarkMode: boolean, fontScale: number) => void,
 }
 
 const screenWidth = Dimensions.get('window').width;
 
 const ModalConfig: FC<modalCfgProps> = (props) => {
-	const { apiURL, setTileTypes, setTiles, setShortcuts, setBoards, setDices } = useContextProvider();
 	const [volEffects, setVolEffects] = useState(props.currVolEffects);
 	const [volMusic, setVolMusic] = useState(props.currVolMusic);
 	const [idxDice, setIdxDice] = useState(props.currIdxDice);
 	const [isDarkMode, setIsDarkMode] = useState(props.currIsDarkMode);
 	const [fontScale, setFontScale] = useState(props.currFontScale);
-	const [allowCloudSync, setAllowCloudSync] = useState(props.allowCloudSync);
-	const [isSyncing, setIsSyncing] = useState(false);
 	const handleDiceSpinComplete = useCallback((diceValue: number) => { }, [])
-
-	useEffect(() => {
-		setAllowCloudSync(props.allowCloudSync)
-	}, [])
 
 	const prevDice = () => {
 		setIdxDice(idxDice === 0 ? props.dices.length - 1 : idxDice - 1);
@@ -49,23 +34,6 @@ const ModalConfig: FC<modalCfgProps> = (props) => {
 
 	const nextDice = () => {
 		setIdxDice((idxDice + 1) % props.dices.length)
-	}
-
-	const cloudSync = async () => {
-		setIsSyncing(true)
-		setAllowCloudSync(false);
-		const db = await SQLite.openDatabaseAsync('WiresAndLadders.db');
-		try {
-			await SyncBoardData(db, apiURL, props.lastUpdate);
-			await loadLocalDbData(db, { setTileTypes, setTiles, setShortcuts, setBoards, setDices });
-		}
-		catch (error: any) {
-			console.log(error.message)
-		}
-		finally {
-			await db.closeAsync();
-			setIsSyncing(false);
-		}
 	}
 
 	return (
@@ -77,11 +45,6 @@ const ModalConfig: FC<modalCfgProps> = (props) => {
 							<View style={{ flex: 1 }}></View>
 							<View style={{ flex: 8 }}>
 								<Text style={[styles.modalTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 20 * fontScale }]}>Configuración</Text>
-							</View>
-							<View style={{ flex: 1, alignItems: 'flex-end', justifyContent: 'center' }}>
-								<TouchableOpacity onPress={cloudSync} disabled={!allowCloudSync || isSyncing} >
-									{allowCloudSync && <AntDesign name='cloud-sync' size={20} color={isDarkMode ? '#578BB6' : '#365C80'} />}
-								</TouchableOpacity>
 							</View>
 						</View>
 
@@ -167,11 +130,9 @@ const ModalConfig: FC<modalCfgProps> = (props) => {
 								</TouchableOpacity>
 							</View>
 						</View>
-						{!isSyncing && (
-							<TouchableOpacity style={styles.closeButton} onPress={() => props.handleModalClose(volEffects, volMusic, idxDice, isDarkMode, fontScale)}>
-								<Text style={styles.closeButtonText}>Aplicar</Text>
-							</TouchableOpacity>
-						)}
+						<TouchableOpacity style={styles.closeButton} onPress={() => props.handleModalClose(volEffects, volMusic, idxDice, isDarkMode, fontScale)}>
+							<Text style={styles.closeButtonText}>Aplicar</Text>
+						</TouchableOpacity>
 					</View>
 				</View>
 			</Modal>

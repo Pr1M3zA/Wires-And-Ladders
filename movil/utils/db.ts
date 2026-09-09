@@ -1,7 +1,7 @@
 import Toast from 'react-native-toast-message';
 import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { LastUpdate, BoardBackgroundType, DbBoardType, BoardType, TileType, DiceType, EducationType, EffectType, ShortCutType } from '@/utils/types';
+import type { LastUpdate, BoardBackgroundType, DbBoardType, BoardType, TileType, DiceType, EducationType, EffectType, ShortCutType, EduKnowledgeAreaType, EduDsciplinesType, EduLevels, EduInfoQuestionsType } from '@/utils/types';
 
 /*-----------------------------------------------------------
       CARGA DE TABLEROS, CASILLAS, ATAJOS Y TIPOS DE CASILLAS
@@ -11,9 +11,12 @@ const loadLocalDbData = async (db: SQLite.SQLiteDatabase, setters: {
    setTiles: (data: TileType[]) => void,
    setShortcuts: (data: ShortCutType[]) => void,
    setBoards: (data: BoardType[]) => void,
-   setDices: (data: DiceType[]) => void
+   setDices: (data: DiceType[]) => void,
+   setEduKnowledgeAreas: (data: EduKnowledgeAreaType[]) => void,
+   setEduDsciplines: (data: EduDsciplinesType[]) => void,
+   setEduLevels: (data: EduLevels[]) => void
 }) => {
-   const { setTileTypes, setTiles, setShortcuts, setBoards, setDices } = setters;
+   const { setTileTypes, setTiles, setShortcuts, setBoards, setDices, setEduKnowledgeAreas, setEduDsciplines, setEduLevels } = setters;
    // Get Shortcuts
    await db.getAllAsync('SELECT id, id_board, from_tile, to_tile FROM shortcuts ORDER BY id_board')
       .then(data => { setShortcuts(data as ShortCutType[]) })
@@ -36,6 +39,18 @@ const loadLocalDbData = async (db: SQLite.SQLiteDatabase, setters: {
    await db.getAllAsync('SELECT id, dice_name, color_faceup, color_faceleft, color_faceright, color_dots, color_border, border_width, scale FROM dices ORDER BY id')
       .then(data => { setDices(data as DiceType[]) })
       .catch(error => { Toast.show({ type: 'error', text1: 'Error (Get Dices local)', text2: error.message }) });
+   // Get Knowledge Areas
+   await db.getAllAsync('SELECT id, description, details FROM edu_knowledge_areas ORDER BY id')
+      .then(data => { setEduKnowledgeAreas(data as EduKnowledgeAreaType[]) })
+      .catch(error => { Toast.show({ type: 'error', text1: 'Error (Get Knowledge Areas local)', text2: error.message }) });
+   // Get Disciplines
+   await db.getAllAsync('SELECT id, id_knowledge_area, description, details FROM edu_disciplines ORDER BY id_knowledge_area, id')
+      .then(data => { setEduDsciplines(data as EduDsciplinesType[]) })
+      .catch(error => { Toast.show({ type: 'error', text1: 'Error (Get Disciplines local)', text2: error.message }) });
+   // Get Levels
+   await db.getAllAsync('SELECT id, description FROM edu_levels ORDER BY id')
+      .then(data => { setEduLevels(data as EduLevels[]) })
+      .catch(error => { Toast.show({ type: 'error', text1: 'Error (Get Levels local)', text2: error.message }) });
 }
 
 /*-----------------------------------------------------------
@@ -53,8 +68,11 @@ const thereIsNewerData = (remoteLastUpdate: LastUpdate[], lastSyncDate: string, 
 
 const SyncBoardData = async (db: SQLite.SQLiteDatabase, apiURL: string, lastRemoteUpdate: LastUpdate[]) => {
    const syncStartTime = new Date().toISOString();
-   const lastSyncDate = await AsyncStorage.getItem('LAST_LOCAL_DB_DATA_SYNC').catch(() => null);
+   const lastSyncDate = await AsyncStorage.getItem('LAST_LOCAL_DB_SYNC_x').catch(() => null);
+
+
    const afterOf = lastSyncDate ?? '1970-01-01';
+
 
    // Sincronización incremental: solo registros modificados desde lastSyncDate
    let didItChange: boolean = false
@@ -88,7 +106,22 @@ const SyncBoardData = async (db: SQLite.SQLiteDatabase, apiURL: string, lastRemo
       await GetRemoteEducation(db, apiURL, afterOf);
       didItChange = true;
    }
-   if (didItChange) await AsyncStorage.setItem('LAST_LOCAL_DB_DATA_SYNC', syncStartTime);
+   if (!lastSyncDate || thereIsNewerData(lastRemoteUpdate, afterOf, 'edu_knowledge_areas')) {
+      await GetRemoteEduKnowledgeAreas(db, apiURL, afterOf);
+      didItChange = true;
+   }
+   if (!lastSyncDate || thereIsNewerData(lastRemoteUpdate, afterOf, 'edu_disciplines')) {
+      await GetRemoteEduDsciplines(db, apiURL, afterOf);
+      didItChange = true;
+   }
+   if (!lastSyncDate || thereIsNewerData(lastRemoteUpdate, afterOf, 'edu_levels')) {
+      await GetRemoteEduLevels(db, apiURL, afterOf);
+      didItChange = true;
+   }
+
+   await GetRemoteEduInfoAndQuestions(db, apiURL);
+
+   if (didItChange) await AsyncStorage.setItem('LAST_LOCAL_DB_SYNC', syncStartTime);
 }
 
 /* ------------------------------------------------------------------------------------------
@@ -133,8 +166,8 @@ const GetRemoteBoards = async (db: SQLite.SQLiteDatabase, apiURL: string, afterO
       .catch(error => Toast.show({ type: 'error', text1: 'Error (get Remote boards)', text2: error.message }));
 };
 const UpsertLocalBoard = async (db: SQLite.SQLiteDatabase, row: DbBoardType) => {
-   const sql = `INSERT OR REPLACE INTO boards (id, board_name, board_description, id_background, width, height, education) VALUES (?, ?, ?, ?, ?, ?, ?)`
-   await db.runAsync(sql, row.id, row.board_name, row.board_description, row.id_background, row.width, row.height, row.education)
+   const sql = `INSERT OR REPLACE INTO boards (id, board_name, board_description, id_background, width, height) VALUES (?, ?, ?, ?, ?, ?, ?)`
+   await db.runAsync(sql, row.id, row.board_name, row.board_description, row.id_background, row.width, row.height)
       .catch(error => Toast.show({ type: 'error', text1: 'Error (Upsert Local Board)', text2: error.message }))
 }
 /*-----------------
@@ -201,6 +234,61 @@ const UpsertLocalEducation = async (db: SQLite.SQLiteDatabase, row: EducationTyp
    await db.runAsync(sql, row.id, row.generation, row.theme, row.information, row.question, row.answer_1, row.answer_2, row.answer_3, row.answer_4, row.answer_ok)
       .catch(error => Toast.show({ type: 'error', text1: 'Error (Upsert Local Edu)', text2: error.message }))
 }
+
+/*----------------------------
+   EDUCATION KNOWLEDGE AREAS
+----------------------------*/
+const GetRemoteEduKnowledgeAreas = async (db: SQLite.SQLiteDatabase, apiURL: string, afterOf: string) => {
+   await fetchAndUpsertAll<EduKnowledgeAreaType>(db, `${apiURL}/sync/edu-knowledge-areas/${afterOf}`, UpsertLocalEduKnowledgeArea)
+      .catch(error => Toast.show({ type: 'error', text1: 'Error (get Remote Edu Knowledge Areas)', text2: error.message }));
+};
+const UpsertLocalEduKnowledgeArea = async (db: SQLite.SQLiteDatabase, row: EduKnowledgeAreaType) => {
+   const sql = `INSERT OR REPLACE INTO edu_knowledge_areas (id, description, details) VALUES (?, ?, ?)`
+   await db.runAsync(sql, row.id, row.description, row.details)
+      .catch(error => Toast.show({ type: 'error', text1: 'Error (Upsert Local Edu Knowledge Area)', text2: error.message }))
+}
+/*----------------------------
+   EDUCATION DISCIPLINES
+----------------------------*/
+const GetRemoteEduDsciplines = async (db: SQLite.SQLiteDatabase, apiURL: string, afterOf: string) => {
+   await fetchAndUpsertAll<EduDsciplinesType>(db, `${apiURL}/sync/edu-disciplines/${afterOf}`, UpsertLocalEduDscipline)
+      .catch(error => Toast.show({ type: 'error', text1: 'Error (get Remote Edu Dsciplines)', text2: error.message }));
+};
+const UpsertLocalEduDscipline = async (db: SQLite.SQLiteDatabase, row: EduDsciplinesType) => {
+   const sql = `INSERT OR REPLACE INTO edu_disciplines (id, id_knowledge_area, description, details) VALUES (?, ?, ?, ?)`
+   await db.runAsync(sql, row.id, row.id_knowledge_area, row.description, row.details)
+      .catch(error => Toast.show({ type: 'error', text1: 'Error (Upsert Local Edu Dscipline)', text2: error.message }))
+}
+/*-----------------
+   EDUCATION LEVELS
+------------------*/
+const GetRemoteEduLevels = async (db: SQLite.SQLiteDatabase, apiURL: string, afterOf: string) => {
+   await fetchAndUpsertAll<EduLevels>(db, `${apiURL}/sync/edu-levels/${afterOf}`, UpsertLocalEduLevel)
+      .catch(error => Toast.show({ type: 'error', text1: 'Error (get Remote Edu Levels)', text2: error.message }));
+};
+const UpsertLocalEduLevel = async (db: SQLite.SQLiteDatabase, row: EduLevels) => {
+   const sql = `INSERT OR REPLACE INTO edu_levels (id, description) VALUES (?, ?)`
+   await db.runAsync(sql, row.id, row.description)
+      .catch(error => Toast.show({ type: 'error', text1: 'Error (Upsert Local Edu Level)', text2: error.message }))
+}
+
+/*------------------------------------------------------------------------------------------------------------------
+   CONSULTAS DE EDUCACIÓN (INFORMACIÓN Y PREGUNTAS) - TABLA EDU_INFO_AND_QUESTIONS
+--------------------------------------------------------------------------------------------------------------------*/
+/*------------------------------
+   EDUCATION INFO AND QUESTIONS
+-------------------------------*/
+const GetRemoteEduInfoAndQuestions = async (db: SQLite.SQLiteDatabase, apiURL: string) => {
+   await fetchAndUpsertAll<EduInfoQuestionsType>(db, `${apiURL}/sync/edu-info-questions`, UpsertLocalEduInfoAndQuestions)
+      .catch(error => Toast.show({ type: 'error', text1: 'Error (get Remote Edu Info And Questions)', text2: error.message }));
+};
+const UpsertLocalEduInfoAndQuestions = async (db: SQLite.SQLiteDatabase, row: EduInfoQuestionsType) => {
+   console.log(row)
+   const sql = `INSERT OR REPLACE INTO edu_info_and_questions (id, id_subtopic, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok, is_true_or_false) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+   await db.runAsync(sql, row.id, row.id_subtopic, row.information, row.question, row.answer_1, row.answer_2, row.answer_3, row.answer_4, row.answer_ok, row.is_true_or_false)
+      .catch(error => Toast.show({ type: 'error', text1: 'Error (Upsert Local Edu Info And Questions)', text2: error.message }))
+}
+
 /*-----------------------------
    CREACION DE TABLAS LOCALES
 ------------------------------*/
@@ -275,22 +363,59 @@ const DbCreateTables = async (db: SQLite.SQLiteDatabase) => {
          scale  DECIMAL(3,1) NOT NULL DEFAULT 1
       );
 
-      CREATE TABLE IF NOT EXISTS education (
+      CREATE TABLE IF NOT EXISTS edu_knowledge_areas (
          id INT NOT NULL PRIMARY KEY,
-         generation TINYINT, 
-         theme TEXT,
-         information TEXT,
-         question TEXT,
-         answer_1 TEXT,
-         answer_2 TEXT,
-         answer_3 TEXT,
-         answer_4 TEXT,
-         answer_ok TINYINT
+         description VARCHAR(100) NOT NULL,
+         details TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS edu_disciplines (
+         id INT NOT NULL PRIMARY KEY,
+         id_knowledge_area INT NOT NULL,
+         description VARCHAR(100) NOT NULL,
+         details TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS edu_levels (
+         id INT NOT NULL PRIMARY KEY,
+         description VARCHAR(100) NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS edu_topics (
+         id INT NOT NULL PRIMARY KEY,
+         id_discipline INT NOT NULL,
+         id_level TINYINT NOT NULL,
+         description VARCHAR(100) NOT NULL,
+         details TEXT,
+         updated_at DATETIME NOT NULL
       );
       
+      CREATE TABLE IF NOT EXISTS edu_subtopics (
+         id INT NOT NULL PRIMARY KEY,
+         id_topic INT NOT NULL,
+         description VARCHAR(100) NOT NULL,
+         details TEXT,
+         updated_at DATETIME NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS edu_info_and_questions (
+         id INT NOT NULL PRIMARY KEY,
+         id_subtopic INT NOT NULL,
+         information VARCHAR(150),
+         question VARCHAR(150),
+         answer_1 VARCHAR(50),
+         answer_2 VARCHAR(50),
+         answer_3 VARCHAR(50),
+         answer_4 VARCHAR(50),
+         answer_ok TINYINT,
+         is_true_of_false TINYINT NOT NULL DEFAULT 0,
+         updated_at DATETIME NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS profanity_words (
          word VARCHAR(30) NOT NULL UNIQUE
-      );`
+      );
+      `
    )
       .catch(error => {
          Toast.show({ type: 'error', text1: 'Error (create local tables)', text2: error.message })
@@ -310,6 +435,12 @@ const DbDropTables = async (db: SQLite.SQLiteDatabase) => {
       DROP TABLE IF EXISTS shortcuts;      
       DROP TABLE IF EXISTS dices;
       DROP TABLE IF EXISTS education;
+      DROP TABLE IF EXISTS edu_knowledge_areas;
+      DROP TABLE IF EXISTS edu_disciplines;
+      DROP TABLE IF EXISTS edu_levels;
+      DROP TABLE IF EXISTS edu_topics;
+      DROP TABLE IF EXISTS edu_subtopics;
+      DROP TABLE IF EXISTS edu_info_and_questions;
       DROP TABLE IF EXISTS profanity_words;`
    )
       .catch(error => {

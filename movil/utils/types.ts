@@ -10,7 +10,7 @@ type BoardType = {
 	color_rect: string,
 	color_path1: string,
 	color_path2: string,
-	education: number,
+	//education: number,
 }
 
 type DiceType = {
@@ -32,9 +32,64 @@ type EducationType = {
 	answer_1: string, answer_2: string, answer_3: string, answer_4: string, answer_ok: number
 }
 
+type EduKnowledgeAreaType = {
+	id: number,
+	description: string, details: string
+}
+
+type EduDsciplinesType = {
+	id: number,
+	id_knowledge_area: number,
+	description: string, details: string
+}
+
+type EduLevels = {
+	id: number,
+	description: string
+}
+
+type EduTopics = {
+	id: number,
+	id_discipline: number, id_level: number,
+	description: string, details: string
+}
+
+type EduSubTopics = {
+	id: number,
+	id_topic: number,
+	description: string, details: string
+}
+
+type EduInfoQuestionsType = {
+	id: number,
+	id_subtopic: number,
+	information: string, question: string,
+	answer_1: string, answer_2: string, answer_3: string, answer_4: string, answer_ok: number,
+	is_true_or_false: boolean
+}
+
+type CustomSubtopicType = {
+	id_subtopic: number,
+	group_name: string,
+	creator_fullname?: string,
+	creator_email?: string,
+	creator_username: string,
+	knowledge_area: string,
+	knowledge_area_detail: string,
+	color: string,
+	discipline: string,
+	discipline_detail: string,
+	level: string,
+	topic: string,
+	topic_detail: string,
+	subtopic: string,
+	subtopic_detail: string,
+}
+
 type TileType = {
 	id: number,
 	id_board: number,
+	id_effect: number,
 	num_tile: number,
 	pos_x: number,
 	pos_y: number,
@@ -48,6 +103,7 @@ type TileType = {
 
 type EffectType = {
 	id: number,
+	id_effect: number,
 	effect_name: string,
 	color_fill: string, color_border: string, color_path1: string, color_path2: string,
 	path1: string, path2: string,
@@ -98,6 +154,8 @@ type GameBoardParams = {
 	roomCode: string;
 	players: string;
 	idBoard: string;
+	idSubtopic: string;
+	subtopicName: string;
 	isCreator: string;
 }
 
@@ -110,10 +168,10 @@ type BoardBackgroundType = {
 }
 
 type DbBoardType = {
-	id: number, id_background: number,
+	id: number,
 	board_name: string, board_description: string,
-	width: number, height: number,
-	education: number,
+	id_background: number, width: number, height: number,
+	//education: number,
 }
 
 type LastUpdate = {
@@ -129,6 +187,9 @@ type UserRowType = {
 	email: string,
 	profile_image: string | null,
 	is_admin: boolean,
+	id_board: number,
+	id_subtopic: number,
+	id_dice: number,
 }
 
 type PlayingUserType = {
@@ -141,5 +202,7 @@ type PlayingUserType = {
 export type {
 	BoardType, DiceType, EducationType, TileType, ShortCutType, EffectType, LastUpdate,
 	PlayerInfoFromLobby, PlayerGameState, GameOverallStats, GameBoardParams,
-	BoardBackgroundType, DbBoardType, UserRowType, PlayingUserType
+	BoardBackgroundType, DbBoardType, UserRowType, PlayingUserType,
+	EduKnowledgeAreaType, EduDsciplinesType, EduLevels, EduTopics, EduSubTopics, EduInfoQuestionsType,
+	CustomSubtopicType
 }

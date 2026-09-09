@@ -8,7 +8,7 @@ import Toast from 'react-native-toast-message';
 import BottomDesign from '@/components/BottomDesign';
 import Cube from '@/components/Cube';
 import * as UIElements from '@/utils/ui-elements.json';
-import { getHour } from '@/utils/utils';
+//import { getHour } from '@/utils/utils';
 
 export default function Login() {
    const router = useRouter();
@@ -25,7 +25,7 @@ export default function Login() {
          const InitCallHour = new Date();
          //console.log(`Login: API: ${apiURL}/login: Inicio llamada a las ${getHour(InitCallHour)}`)
          setLoading(true);
-         const response = await fetch(apiURL + '/login', {
+         const response = await fetch(apiURL + '/users/login', {
             method: 'POST',
             headers: {
                'Content-Type': 'application/json',
@@ -58,7 +58,7 @@ export default function Login() {
 
    const sendCode = async () => {
       setLoading(true);
-      await fetch(apiURL + '/send-reset-code', {
+      await fetch(apiURL + '/users/send-reset-code', {
          method: 'POST',
          headers: {
             'Content-Type': 'application/json',
@@ -77,8 +77,10 @@ export default function Login() {
                   params: { identifier: identifier }
                });
             }
-            else
+            else {
+               console.log(data);
                Toast.show({ type: 'error', text1: 'Error', text2: `${data.message}`, position: 'top', visibilityTime: 30 })
+            }
          })
          .catch(error => Toast.show({ type: 'error', text1: 'Error', text2: `${error}`, position: 'top', visibilityTime: 3000 }));
       setLoading(false);

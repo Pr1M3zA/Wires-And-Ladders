@@ -21,8 +21,8 @@ import ModalGameStats from '@/components/GameStatisticsModal';
 import ModalConfig from '@/components/ModalConfig';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getHour } from '@/utils/utils';
-import type { EducationType, DiceType, GameBoardParams, PlayerInfoFromLobby, PlayerGameState, GameOverallStats } from '@/utils/types';
-import * as SQLite from 'expo-sqlite';
+import { getBoardElements, getInfoAndQuestions } from '@/utils/fetchAndSet';
+import type { EduInfoQuestionsType, DiceType, GameBoardParams, PlayerInfoFromLobby, PlayerGameState, GameOverallStats, BoardType, TileType, ShortCutType } from '@/utils/types';
 
 import musicSrc from '@/assets/sounds/game-music-loop-20.mp3';
 import bonusSrc from '@/assets/sounds/game-bonus.mp3'
@@ -50,14 +50,18 @@ export default function BoardGame() {
 	// Constantes del juego
 	const router = useRouter();
 	const params = useLocalSearchParams<GameBoardParams>();
-	const { token, apiURL, socket, idUser, boards, tiles, shortcuts, dices, userRow, isDarkMode, setIsDarkMode, fontScale, setFontScale, playingUsers } = useContextProvider();
+	const { token, apiURL, socket, idUser, dices, userRow, isDarkMode, setIsDarkMode, fontScale, setFontScale, playingUsers } = useContextProvider();
 	const idBoard = parseInt(params.idBoard, 10);
+	const idSubtopic = parseInt(params.idSubtopic, 10) || 1;
+	const [board, setBoard] = useState<BoardType | null>(null);
+	const [tiles, setTiles] = useState<TileType[]>([]);
+	const [shortcuts, setShortcuts] = useState<ShortCutType[]>([]);
+	const [isBoardLoading, setIsBoardLoading] = useState(false);
 	// Derivaciones del tablero - memoizadas para referencias estables (evitan re-animar Players)
 	const hexTiles = useMemo(() => tiles.filter(t => t.id_board === idBoard), [tiles, idBoard]);
 	const shortCuts = useMemo(() => shortcuts.filter(s => s.id_board === idBoard), [shortcuts, idBoard]);
-	const myBoard = boards.filter(b => b.id === idBoard)[0];
-	const canvas_width = !myBoard ? 0 : myBoard.width === 0 ? Dimensions.get('window').width : myBoard.width;
-	const canvas_height = !myBoard ? 0 : myBoard.height;
+	const canvas_width = !board ? 0 : board.width === 0 ? Dimensions.get('window').width : board.width;
+	const canvas_height = !board ? 0 : board.height;
 	const [layoutBottom, setLayoutBottom] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
 	// Estados del juego
@@ -78,17 +82,22 @@ export default function BoardGame() {
 	const [isModalVisible, setIsModalVisible] = useState(false);
 	const [isCfgModalVisible, setIsCfgModalVisible] = useState(false);
 	const [isGameStatsModalVisible, setIsGameStatsModalVisible] = useState(false);
-	const [currentEducationItem, setCurrentEducationItem] = useState<EducationType | null>(null);
+	const [currentEducationItem, setCurrentEducationItem] = useState<EduInfoQuestionsType | null>(null);
 	const [modalType, setModalType] = useState<'Informativo' | 'Pregunta' | null>(null);
-	const [educationData, setEducationData] = useState<EducationType[]>([])
+	const [educationData, setEducationData] = useState<EduInfoQuestionsType[]>([])
 
 	const [volMusic, setVolMusic] = useState(1);
 	const [volEffects, setVolEffects] = useState(1);
 	const [dice, setDice] = useState<DiceType>(dices[0]);
 
 	useEffect(() => {
-		//console.log(`Carga de Tablero: ${apiURL}/user: iniciando llamada a las ${getHour(InitCallHour)}`)
-		GetEducationData();
+		getInfoAndQuestions(apiURL, idSubtopic, setEducationData);
+	}, [idSubtopic, apiURL]);
+
+	useEffect(() => {
+		setIsBoardLoading(true);
+		getBoardElements(idBoard, apiURL, setBoard, setTiles, setShortcuts)
+			.finally(() => setIsBoardLoading(false));
 	}, []);
 
 	useEffect(() => {   // Control de abandono de partida
@@ -127,7 +136,7 @@ export default function BoardGame() {
 			});
 		}
 
-	}, [playersState, currentPlayerIndex, socket, params.roomCode]);
+	}, [playersState, currentPlayerIndex, socket, params.roomCode, hexTiles]);
 
 	/*---------------------------------------------------
 		CUANDO EL JUGADOR LLEGUE A SU CASILLA DESTINO
@@ -407,7 +416,7 @@ export default function BoardGame() {
 			})),
 		};
 
-		await fetch(apiURL + '/game-stats', {
+		await fetch(apiURL + '/game/game-stats', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -548,29 +557,10 @@ export default function BoardGame() {
 		fail.volume = volEffects
 	}, [volEffects])
 
-	/* -------------------------------------------------------
-		CARGA DE INFORMACIÓN Y PREGUNTAS DE EDUCACIÓN (dbLocal)
-	---------------------------------------------------------*/
-	const GetEducationData = async () => {
-		if (!isLoading && educationData.length === 0) {
-			setIsLoading(true)
-			const db = await SQLite.openDatabaseAsync('WiresAndLadders.db', { useNewConnection: true });
-			await db.getAllAsync(`SELECT id, generation, theme, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok FROM education WHERE generation=${myBoard.education} OR ${myBoard.education} = 0`)
-				.then(data => {
-					const EndCallHour = new Date()
-					if (userRow.is_admin)
-						Toast.show({ type: 'info', text1: 'Load Board', text2: `Carga de tablero: respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
-					setEducationData(data as EducationType[])
-					setIsLoading(false)
-				})
-				.catch(error => { Toast.show({ type: 'error', text1: 'Error (Get Education local)', text2: error.message }) })
-				.finally(() => { db.closeAsync(); });
-		}
-	}
 	/*---------------------------------------------------
-		MOSTRAR PANTALLA DE CARGA 
+		MOSTRAR PANTALLA DE CARGA
 	---------------------------------------------------*/
-	if (isLoading || playersState.length === 0) {
+	if (isLoading || isBoardLoading || !board || playersState.length === 0) {
 		return (
 			<Loading />
 		);
@@ -582,9 +572,9 @@ export default function BoardGame() {
 				<Animated.ScrollView >
 					<Svg width="100%" height={canvas_height} >
 						<Background
-							width={canvas_width} height={canvas_height} patternWidth={myBoard ? myBoard.rect_width : 60} patternHeight={myBoard ? myBoard.rect_height : 36}
-							colors={{ color1: myBoard ? myBoard.color_rect : "white", color2: myBoard ? myBoard.color_path1 : "linen", color3: myBoard ? myBoard.color_path2 : "mintcream" }}
-							svgPath1={myBoard ? myBoard.path1 : ''} svgPath2={myBoard ? myBoard.path2 : ''}
+							width={canvas_width} height={canvas_height} patternWidth={board ? board.rect_width : 60} patternHeight={board ? board.rect_height : 36}
+							colors={{ color1: board ? board.color_rect : "white", color2: board ? board.color_path1 : "linen", color3: board ? board.color_path2 : "mintcream" }}
+							svgPath1={board ? board.path1 : ''} svgPath2={board ? board.path2 : ''}
 						/>
 						{hexTiles.map((item, index) => {
 							if (item.effect_name === 'Inicio' || item.effect_name === 'Meta')
@@ -711,6 +701,7 @@ export default function BoardGame() {
 				isModalVisible={isModalVisible}
 				handleModalClose={handleModalClose}
 				handleAnswer={handleAnswer}
+				subtopicName={params.subtopicName ?? ''}
 			/>
 			<ModalGameStats
 				isVisible={isGameStatsModalVisible}
@@ -731,8 +722,6 @@ export default function BoardGame() {
 				dices={dices}
 				currIsDarkMode={isDarkMode}
 				currFontScale={fontScale}
-				allowCloudSync={false}
-				lastUpdate={[]}
 			/>
 		</View>
 	)

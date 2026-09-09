@@ -43,7 +43,7 @@ async function deleteRoom(roomCode) {
 io.on('connection', (socket) => {
    const { dbUserId, userName } = socket.handshake.query;
 
-   socket.on('createRoom', async ({ roomCode, user, idBoardGame }) => {
+   socket.on('createRoom', async ({ roomCode, user, idBoardGame, idSubtopic }) => {
       if (!roomCode || !user || !user.id || !user.userName) {
          socket.emit('createRoomError', { message: 'Datos incompletos para crear la sala.', serverPort: SOCKET_PORT });
          return;
@@ -61,12 +61,13 @@ io.on('connection', (socket) => {
          creatorSocketId: socket.id,
          maxUsers: MAX_USERS_PER_ROOM,
          nextGuestId: -1,
-         idBoard: idBoardGame
+         idBoard: idBoardGame,
+         idSubtopic: typeof idSubtopic === 'number' ? idSubtopic : 1
       };
 
       await saveRoom(roomCode, newRoom);
       socket.join(roomCode);
-      socket.emit('roomCreated', { roomCode, users: newRoom.users, isCreator: true, serverPort: SOCKET_PORT });
+      socket.emit('roomCreated', { roomCode, users: newRoom.users, isCreator: true, serverPort: SOCKET_PORT, idSubtopic: newRoom.idSubtopic });
    });
 
    socket.on('joinRoom', async ({ roomCode, user }) => {
@@ -101,8 +102,8 @@ io.on('connection', (socket) => {
 
       socket.join(roomCode);
 
-      socket.emit('joinedRoom', { roomCode, users: room.users, serverPort: SOCKET_PORT });
-      io.to(roomCode).emit('groupUpdate', { users: room.users, idBoard: room.idBoard });
+      socket.emit('joinedRoom', { roomCode, users: room.users, serverPort: SOCKET_PORT, idSubtopic: room.idSubtopic });
+      io.to(roomCode).emit('groupUpdate', { users: room.users, idBoard: room.idBoard, idSubtopic: room.idSubtopic });
    });
 
    socket.on('setBoard', async ({ roomCode, idBoard }) => {
@@ -110,7 +111,16 @@ io.on('connection', (socket) => {
       if (room) {
          room.idBoard = idBoard;
          await saveRoom(roomCode, room);
-         io.to(roomCode).emit('groupUpdate', { users: room.users, idBoard: room.idBoard });
+         io.to(roomCode).emit('groupUpdate', { users: room.users, idBoard: room.idBoard, idSubtopic: room.idSubtopic });
+      }
+   });
+
+   socket.on('setSubtopic', async ({ roomCode, idSubtopic }) => {
+      const room = await getRoom(roomCode);
+      if (room && room.creatorSocketId === socket.id) {
+         room.idSubtopic = idSubtopic;
+         await saveRoom(roomCode, room);
+         io.to(roomCode).emit('groupUpdate', { users: room.users, idBoard: room.idBoard, idSubtopic: room.idSubtopic });
       }
    });
 
@@ -124,7 +134,7 @@ io.on('connection', (socket) => {
          const gameId = `game_${roomCode}_${Date.now()}`;
          room.gameId = gameId;
          await saveRoom(roomCode, room);
-         io.to(roomCode).emit('gameStarting', { gameId });
+         io.to(roomCode).emit('gameStarting', { gameId, idSubtopic: room.idSubtopic });
       } else {
          socket.emit('startGameError', { message: 'No autorizado o la sala no existe.', serverPort: SOCKET_PORT });
       }
@@ -155,7 +165,7 @@ io.on('connection', (socket) => {
                await deleteRoom(roomCode);
             } else {
                await saveRoom(roomCode, room);
-               io.to(roomCode).emit('groupUpdate', { users: room.users, idBoard: room.idBoard });
+               io.to(roomCode).emit('groupUpdate', { users: room.users, idBoard: room.idBoard, idSubtopic: room.idSubtopic });
             }
          }
       }

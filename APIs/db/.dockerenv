@@ -1,0 +1,7 @@
+PORT=3000
+DB_HOST=host.docker.internal
+DB_PORT=3306
+DB_USER=user
+DB_PASSWORD=password
+DB_NAME=wiresladders
+SECRET=ac49320f56ae1a8ccc68544165c99603239c26f8

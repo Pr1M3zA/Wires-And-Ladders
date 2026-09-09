@@ -5,10 +5,10 @@
   "license": "ISC",
   "author": "",
   "type": "module",
-  "main": "withexpress.js",
+  "main": "index.js",
   "scripts": {
-    "dev": "nodemon --env-file=.env withexpress.js",
-    "start": "node --env-file=.env withexpress.js"
+    "dev": "nodemon --env-file=.env index.js",
+    "start": "node --env-file=.env index.js"
   },
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",

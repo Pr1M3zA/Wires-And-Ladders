@@ -41,7 +41,7 @@ export default function Lobby() {
 	const getUserData = async () => {
 		//console.log(`API GET: ${apiURL}/user: Inicio llamada a las ${getHour()}`)
 		setLoading(true);
-		await fetch(apiURL + '/user', {
+		await fetch(apiURL + '/users/user', {
 			method: 'GET',
 			headers: {
 				'Content-Type': 'application/json',

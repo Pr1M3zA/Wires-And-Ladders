@@ -1,16 +1,17 @@
 import { FC, useCallback } from 'react'
 import { View, Text, Modal, StyleSheet, TouchableOpacity, Dimensions } from 'react-native'
 import Animated from 'react-native-reanimated';
-import type { EducationType } from '@/utils/types';
+import type { EduInfoQuestionsType } from '@/utils/types';
 import Svg from 'react-native-svg';
 import Dice from '@/components/Dice';
 
 interface modalProps {
-	educationItem: EducationType | null,
+	educationItem: EduInfoQuestionsType | null,
 	modalType: 'Informativo' | 'Pregunta' | null,
 	isModalVisible: boolean,
 	handleModalClose: () => void,
 	handleAnswer: (selectedAnswer: number) => void,
+	subtopicName: string,
 }
 
 const ModalEducation: FC<modalProps> = (props) => {
@@ -26,17 +27,17 @@ const ModalEducation: FC<modalProps> = (props) => {
 								<Animated.View style={{ width: '100%' }}>
 									<Svg width="100%" height={90}>
 										<Dice
-											initialValue={props.educationItem.generation} 
+											initialValue={1}
 											onSpinComplete={handleDiceSpinComplete} // Callback for when spin ends
-											position={{ x: ~~(((width*.9)-120)/2), y: 0 }}
+											position={{ x: ~~(((width * .9) - 120) / 2), y: 0 }}
 											scale={1} lineWidth={2}
 											colors={{ faceUpColor: "#6599C3", faceLeftColor: "#6599C3", faceRightColor: "#6599C3", line: "white", dots: "white" }}
 											isAnimated={false}
 										/>
 									</Svg>
 								</Animated.View>
-								<Text style={styles.generation}>Generación {props.educationItem.generation}</Text>
-								<Text style={styles.themeText}>Tema: {props.educationItem.theme}</Text>
+								<Text style={styles.generation}>{props.modalType === 'Informativo' ? '¿Sabías que?' : '¡Pregunta!'}</Text>
+								<Text style={styles.themeText}>{props.subtopicName}</Text>
 								<View style={styles.separator} />
 
 								{props.modalType === 'Informativo' && (
@@ -102,7 +103,7 @@ const styles = StyleSheet.create({
 		shadowOpacity: 0.25,
 		shadowRadius: 4,
 		elevation: 5,
-		width: '90%', 
+		width: '90%',
 		borderColor: '#6599C3',
 		borderWidth: 10,
 
@@ -143,23 +144,23 @@ const styles = StyleSheet.create({
 		borderRadius: 20,
 		padding: 10,
 		elevation: 2,
-		minWidth: 100, 
+		minWidth: 100,
 		width: Dimensions.get('window').width * 0.4,
 		maxWidth: Dimensions.get('window').width * 0.4,
 		alignItems: 'center',
 		justifyContent: 'center',
 	},
-	modalButtonOption1: { 
-		backgroundColor: "#598DB8", 
+	modalButtonOption1: {
+		backgroundColor: "#598DB8",
 	},
-	modalButtonOption2: { 
-		backgroundColor: "#B85C59", 
+	modalButtonOption2: {
+		backgroundColor: "#B85C59",
 	},
-	modalButtonOption3: { 
-		backgroundColor: "#59B86D", 
+	modalButtonOption3: {
+		backgroundColor: "#59B86D",
 	},
-	modalButtonOption4: { 
-		backgroundColor: "#B8AE59", 
+	modalButtonOption4: {
+		backgroundColor: "#B8AE59",
 	},
 
 	modalButtonClose: {

@@ -1,12 +1,19 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useRef, use } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Switch, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Switch, Image } from 'react-native';
 import BottomDesign from '@/components/BottomDesign';
+import PlayerCard from '@/components/PlayerCard';
+import * as gameItems from '@/utils/gameitems.json';
 import { io } from 'socket.io-client';
 import { useContextProvider } from '@/utils/ContextProvider';
 import Toast from 'react-native-toast-message';
 import { getHour } from '@/utils/utils';
 import Loading from '@/components/Loading';
+import SubtopicSelector from '@/components/SubtopicSelector';
+import SubtopicCard from '@/components/SubtopicCard';
+import BoardPreview from '@/components/BoardPreview';
+import { getBoardElements, getCustomSubtopicById } from '@/utils/fetchAndSet';
+import type { CustomSubtopicType, BoardType, TileType, ShortCutType } from '@/utils/types';
 import Icon from '@expo/vector-icons/Feather';
 
 const Gato = require('@/assets/images/GatoSalvaje.webp');
@@ -23,19 +30,38 @@ export default function GamersGroup() {
 	const router = useRouter();
 	const params = useLocalSearchParams<{ mode: string; roomCode: string }>();
 	const { mode, roomCode } = params;
-	const { idUser, setIdUser, userRow, setUserRow, defBoard, apiURL, socketURL, socket, setSocket, boards, isDarkMode, fontScale, playingUsers, setPlayingUsers } = useContextProvider();
+	const { idUser, setIdUser, userRow, setUserRow, selectSubTopic, apiURL, socketURL, socket, setSocket, isDarkMode, fontScale, playingUsers, setPlayingUsers } = useContextProvider();
 	const [usersInGroup, setUsersInGroup] = useState<UserInGroup[]>([]);
 	const [currentRoomCode, setCurrentRoomCode] = useState(roomCode);
 	const [isLoading, setIsLoading] = useState(false);
 	const [isCreator, setIsCreator] = useState(mode === '0');
-	const [idBoardGame, setIdBoardGame] = useState(defBoard);
-	const [idxBoardGame, setIdxBoardGame] = useState(0)
+	const [idBoardGame, setIdBoardGame] = useState(1);
+	const [idSubtopic, setIdSubtopic] = useState<number>(userRow.id_subtopic);
+	const [selectedCustomSubtopic, setSelectedCustomSubtopic] = useState<CustomSubtopicType | null>(null);
+	const [board, setBoard] = useState<BoardType | null>(null);
+	const [tiles, setTiles] = useState<TileType[]>([]);
+	const [shortcuts, setShortcuts] = useState<ShortCutType[]>([]);
+	const [isBoardLoading, setIsBoardLoading] = useState(false);
+	const [isSubtopicModalVisible, setIsSubtopicModalVisible] = useState(false);
 	const usersInGroupRef = useRef(usersInGroup);
 	const idBoardRef = useRef(idBoardGame);
+	const idSubtopicRef = useRef(idSubtopic);
+	const selectedCustomSubtopicRef = useRef(selectedCustomSubtopic);
+
+	useEffect(() => { idSubtopicRef.current = idSubtopic; }, [idSubtopic]);
 
 	useEffect(() => {
 		idBoardRef.current = idBoardGame;
-		if (boards.length > 0) setIdxBoardGame(boards.findIndex(b => b.id === idBoardGame))
+	}, [idBoardGame]);
+
+	useEffect(() => {
+		selectedCustomSubtopicRef.current = selectedCustomSubtopic;
+	}, [selectedCustomSubtopic]);
+
+	useEffect(() => {
+		setIsBoardLoading(true);
+		getBoardElements(idBoardGame, apiURL, setBoard, setTiles, setShortcuts)
+			.finally(() => setIsBoardLoading(false));
 	}, [idBoardGame]);
 
 
@@ -51,6 +77,14 @@ export default function GamersGroup() {
 		setPlayingUsers(usersInGroup.map(u => ({ id: u.dbUserId, username: u.userName, profile_image: u.profileImage, socketId: u.socketId })));
 	}, [usersInGroup])
 
+	const creatorIdUser = playingUsers[0]?.id ?? 0;
+	useEffect(() => {
+		const lookupId = creatorIdUser > 0 ? creatorIdUser : idUser;
+		if (idSubtopic > 0 && lookupId > 0) {
+			getCustomSubtopicById(apiURL, idSubtopic, lookupId, setSelectedCustomSubtopic);
+		}
+	}, [idSubtopic, creatorIdUser, idUser, apiURL]);
+
 	useEffect(() => {
 		const newSocket = io(socketURL, {
 			query: {
@@ -65,7 +99,7 @@ export default function GamersGroup() {
 		newSocket.on('connect', () => {
 			if (isCreator) { // Creador
 				//console.log('profile_image', userRow.profile_image)
-				newSocket.emit('createRoom', { roomCode: currentRoomCode, user: { id: idUser, userName: userRow.username, profileImage: userRow.profile_image }, idBoardGame: 1 });
+				newSocket.emit('createRoom', { roomCode: currentRoomCode, user: { id: idUser, userName: userRow.username, profileImage: userRow.profile_image }, idBoardGame: 1, idSubtopic: selectSubTopic });
 			} else { // Unirse
 				newSocket.emit('joinRoom', { roomCode: currentRoomCode, user: { id: idUser, userName: userRow.username, profileImage: userRow.profile_image } });
 			}
@@ -83,11 +117,12 @@ export default function GamersGroup() {
 		});
 
 		// Eventos del servidor
-		newSocket.on('roomCreated', ({ roomCode, users, isCreator: creatorStatus, serverPort }: { roomCode: string; users: UserInGroup[], isCreator: boolean, serverPort?: number }) => {
+		newSocket.on('roomCreated', ({ roomCode, users, isCreator: creatorStatus, serverPort, idSubtopic: roomSubtopic }: { roomCode: string; users: UserInGroup[], isCreator: boolean, serverPort?: number, idSubtopic?: number }) => {
 			setCurrentRoomCode(roomCode);
 			setUsersInGroup(users);
 			setIsCreator(creatorStatus);
 			setIsLoading(false);
+			if (typeof roomSubtopic === 'number') setIdSubtopic(roomSubtopic);
 			const EndCallHour = new Date();
 			if (userRow.is_admin)
 				Toast.show({ type: 'info', text1: 'Sala creada', text2: `API SOCKETS (roomCreated): respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
@@ -95,10 +130,11 @@ export default function GamersGroup() {
 				Toast.show({ type: 'success', text1: 'Sala Creada', text2: `Código: ${roomCode} | Host: :${serverPort}` });
 		});
 
-		newSocket.on('joinedRoom', ({ roomCode, users, serverPort }: { roomCode: string; users: UserInGroup[], serverPort?: number }) => {
+		newSocket.on('joinedRoom', ({ roomCode, users, serverPort, idSubtopic: roomSubtopic }: { roomCode: string; users: UserInGroup[], serverPort?: number, idSubtopic?: number }) => {
 			setCurrentRoomCode(roomCode);
 			setUsersInGroup(users);
 			setIsLoading(false);
+			if (typeof roomSubtopic === 'number') setIdSubtopic(roomSubtopic);
 			const EndCallHour = new Date();
 			if (userRow.is_admin)
 				Toast.show({ type: 'info', text1: 'Te uniste a la sala', text2: `API SOCKETS (joinedRoom): Respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
@@ -106,9 +142,10 @@ export default function GamersGroup() {
 				Toast.show({ type: 'success', text1: 'Te Uniste a la Sala', text2: `Código: ${roomCode} | Host: :${serverPort}` });
 		});
 
-		newSocket.on('groupUpdate', ({ users, idBoard }: { users: UserInGroup[], idBoard: number }) => {
+		newSocket.on('groupUpdate', ({ users, idBoard, idSubtopic: groupSubtopic }: { users: UserInGroup[], idBoard: number, idSubtopic?: number }) => {
 			setUsersInGroup(users);
 			setIdBoardGame(idBoard);
+			if (typeof groupSubtopic === 'number') setIdSubtopic(groupSubtopic);
 		});
 
 		newSocket.on('createRoomError', ({ message }: { message: string }) => {
@@ -134,7 +171,8 @@ export default function GamersGroup() {
 			router.replace('/Lobby'); // O a la pantalla principal
 		});
 
-		newSocket.on('gameStarting', ({ gameId }: { gameId: string }) => { // gameId podría ser útil
+		newSocket.on('gameStarting', ({ gameId, idSubtopic: gameSubtopic }: { gameId: string, idSubtopic?: number }) => { // gameId podría ser útil
+			if (typeof gameSubtopic === 'number') setIdSubtopic(gameSubtopic);
 			Toast.show({ type: 'info', text1: '¡Comenzando Partida!', text2: `Uniéndose al juego ${currentRoomCode}` });
 			router.push({
 				pathname: '/BoardGame',
@@ -143,6 +181,8 @@ export default function GamersGroup() {
 					roomCode: currentRoomCode,
 					players: JSON.stringify(usersInGroupRef.current.map(u => ({ dbUserId: u.dbUserId, socketId: u.socketId }))), // Serializa el array de UserInGroup, solo con los datos necesarios para el juego
 					idBoard: idBoardRef.current,
+					idSubtopic: idSubtopicRef.current,
+					subtopicName: selectedCustomSubtopicRef.current?.subtopic ?? '',
 					isCreator: isCreator ? '1' : '0',
 				}
 			});
@@ -175,18 +215,16 @@ export default function GamersGroup() {
 		}
 	};
 
-	const nextBoardGame = () => {
-		setIdxBoardGame((idxBoardGame + 1) % boards.length)
-	}
-
-	const prevBoardGame = () => {
-		setIdxBoardGame(idxBoardGame === 0 ? boards.length - 1 : idxBoardGame - 1)
-	}
-
-	useEffect(() => {
-		if (idxBoardGame >= 0 && idxBoardGame < boards.length && socket && currentRoomCode && isCreator && boards.length > 0)
-			socket.emit('setBoard', { roomCode: currentRoomCode, idBoard: boards[idxBoardGame].id })
-	}, [idxBoardGame])
+	const handleSelectSubtopic = (selectedId?: number, selectedItem?: CustomSubtopicType) => {
+		setIsSubtopicModalVisible(false);
+		if (selectedId && selectedItem) {
+			setSelectedCustomSubtopic(selectedItem);
+			setIdSubtopic(selectedId);
+			if (socket && currentRoomCode && isCreator) {
+				socket.emit('setSubtopic', { roomCode: currentRoomCode, idSubtopic: selectedId });
+			}
+		}
+	};
 
 	if (isLoading) {
 		return (
@@ -197,47 +235,89 @@ export default function GamersGroup() {
 	return (
 		<View style={[styles.container, { backgroundColor: isDarkMode ? '#3C709A' : '#6599c3' }]}>
 			<View style={[styles.titleContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
-				<Text style={[styles.title, { color: isDarkMode ? '#578BB6' : '#365C80' }]}>Sala de Espera</Text>
 				{currentRoomCode && <Text style={styles.roomCodeText}>{currentRoomCode}</Text>}
 			</View>
-			{/* Selección de tablero */}
-			<View style={[styles.boardCointainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
-				<Text style={{ color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 14 * fontScale }}>Generación:</Text>
-				<View style={[styles.selBoardCointainer, { paddingHorizontal: 50 / fontScale }]}>
-					<View style={styles.arrowsSelBoard}>
-						{isCreator && (
-							<TouchableOpacity onPress={prevBoardGame}>
-								<Icon name='arrow-left-circle' size={24 * fontScale} color={isDarkMode ? '#1F3344' : 'white'} />
-							</TouchableOpacity>
-						)}
+
+
+			<View style={[styles.playersContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white', paddingHorizontal: 50 / fontScale }]}>
+				<View style={styles.playersHeader}>
+					<Text style={[styles.usersTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale }]}>Jugadores ({playingUsers.length}/6):</Text>
+				</View>
+				{playingUsers.length === 0 ? (
+					<Text style={styles.emptyListText}>Esperando jugadores...</Text>
+				) : (
+					<View style={styles.playersGrid}>
+						{[0, 1].map(row => (
+							<View key={`row-${row}`} style={styles.playersRow}>
+								{[0, 1, 2].map(col => {
+									const idx = row * 3 + col;
+									const user = playingUsers[idx];
+									if (!user) return <View key={`empty-${row}-${col}`} style={styles.playerCell} />;
+									const color = gameItems.playerColors[idx % gameItems.playerColors.length];
+									const isMe = user.socketId === socket?.id;
+									const isHost = playingUsers[0]?.socketId === user.socketId;
+									return (
+										<View key={user.socketId} style={styles.playerCell}>
+											<PlayerCard
+												image={user.profile_image}
+												name={user.username}
+												color={color}
+												isHost={isHost}
+												isMe={isMe}
+											/>
+										</View>
+									);
+								})}
+							</View>
+						))}
 					</View>
-					<View style={[styles.boardName]}>
-						<Text style={[styles.boardNameText, { fontSize: 18 * fontScale }]}>{boards.length === 0 ? ' Cargando....' : boards[idxBoardGame].board_name}</Text>
-					</View>
-					<View style={styles.arrowsSelBoard}>
-						{isCreator && (
-							<TouchableOpacity onPress={(nextBoardGame)}>
-								<Icon name='arrow-right-circle' size={24 * fontScale} color={isDarkMode ? '#1F3344' : 'white'} />
-							</TouchableOpacity>
-						)}
-					</View>
+				)}
+			</View>
+
+			<View style={[styles.bottomCardsRow, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
+				<View style={{ flex: 1, paddingRight: 5 }}>
+					<Text style={[styles.usersTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale }]}>Tablero</Text>
+					<BoardPreview board={board} tiles={tiles} shortcuts={shortcuts} isDarkMode={isDarkMode} />
+				</View>
+				<View style={{ flex: 1, paddingLeft: 5 }}>
+					{selectedCustomSubtopic ? (
+						<View style={styles.subtopicColumn}>
+							<View style={styles.subtopicHeaderRow}>
+								<Text style={[styles.usersTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale, marginBottom: 0 }]}>
+									Tema
+								</Text>
+								{isCreator && (
+									<TouchableOpacity
+										style={styles.changeSubtopicBtn}
+										onPress={() => setIsSubtopicModalVisible(true)}
+									>
+										<Icon
+											name='refresh-cw'
+											size={14 * fontScale}
+											color={isDarkMode ? '#578BB6' : '#365C80'}
+										/>
+									</TouchableOpacity>
+								)}
+							</View>
+							<SubtopicCard
+								item={selectedCustomSubtopic}
+								isDarkMode={isDarkMode}
+								fontScale={fontScale}
+							/>
+						</View>
+					) : isCreator ? (
+						<TouchableOpacity
+							style={[styles.selectSubtopicBtn, { backgroundColor: isDarkMode ? '#3C709A' : '#6599C3' }]}
+							onPress={() => setIsSubtopicModalVisible(true)}
+						>
+							<Icon name='plus-circle' size={20 * fontScale} color='white' />
+							<Text style={{ color: 'white', fontSize: 12 * fontScale, marginLeft: 6 }}>Seleccionar Subtema</Text>
+						</TouchableOpacity>
+					) : null}
 				</View>
 			</View>
-			<View style={[styles.playersContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white', paddingHorizontal: 50 / fontScale }]}>
-				<Text style={[styles.usersTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale }]}>Jugadores ({playingUsers.length}/6):</Text>
-				<FlatList
-					data={playingUsers}
-					keyExtractor={(item) => item.socketId}
-					renderItem={({ item }) => (
-						<View style={[styles.userItem, { backgroundColor: isDarkMode ? '#1F3344' : 'white', flexDirection: 'row', alignItems: 'center' }]}>
-							<Image style={styles.profileImage} source={item.profile_image ? { uri: 'data:image/webp;base64,' + item.profile_image } : Gato} />
-							<Text style={[styles.userName, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 16 * fontScale }]}>{item.username} {item.socketId === socket?.id ? "(Tú)" : ""}{playingUsers[0]?.socketId === item.socketId ? " (Host)" : ""}</Text>
-						</View>
-					)}
-					ListEmptyComponent={<Text style={styles.emptyListText}>Esperando jugadores...</Text>}
-					style={styles.userList}
-				/>
-			</View>
+
+
 			<View style={[styles.buttonsContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
 				{isCreator && (
 					<TouchableOpacity style={[styles.button, playingUsers.length < 2 ? styles.buttonDisabled : {}]} onPress={handleStartGame} disabled={playingUsers.length < 2} >
@@ -251,6 +331,11 @@ export default function GamersGroup() {
 
 			<BottomDesign allowRanking={false} />
 
+			<SubtopicSelector
+				isModalVisible={isSubtopicModalVisible}
+				handleModalClose={handleSelectSubtopic}
+			/>
+
 		</View>
 	);
 }
@@ -261,48 +346,46 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 	},
 	titleContainer: {
-		flex: 18,
+		flex: 10,
 		paddingTop: 50,
 		alignItems: 'center',
 		height: '100%',
 		width: '100%',
 	},
-	boardCointainer: {
-		flex: 10,
-		//backgroundColor: 'white',
-		alignItems: 'center',
-		justifyContent: 'center',
-		height: '100%',
-		width: '100%',
-	},
-	selBoardCointainer: {
-		width: '100%',
-		flexDirection: 'row',
-	},
-	arrowsSelBoard: {
-		flex: 1,
-		alignItems: 'center',
-		justifyContent: 'center',
-		backgroundColor: 'steelblue',
-	},
-	boardName: {
-		flex: 5,
-		alignItems: 'center',
-		justifyContent: 'center',
-		borderColor: '#6599C3',
-		borderWidth: 1,
-	},
-	boardNameText: {
-		color: '#6599C3',
-		fontFamily: 'Manrope_400Regular',
-	},
 
 	playersContainer: {
-		flex: 45,
-		alignItems: 'center',
+		flex: 40,
+		//alignItems: 'center',
 		height: '100%',
 		width: '100%',
-		justifyContent: 'center',
+	},
+	bottomCardsRow: {
+		flex: 35,
+		flexDirection: 'row',
+		width: '100%',
+		paddingHorizontal: 20,
+	},
+	selectSubtopicBtn: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		//paddingVertical: 10,
+		paddingHorizontal: 14,
+		borderRadius: 10,
+		elevation: 2,
+	},
+	subtopicColumn: {
+		width: '100%',
+	},
+	subtopicHeaderRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		marginBottom: 10,
+		width: '100%',
+	},
+	changeSubtopicBtn: {
+		paddingVertical: 4,
+		paddingHorizontal: 6,
 	},
 	buttonsContainer: {
 		flex: 15,
@@ -332,32 +415,37 @@ const styles = StyleSheet.create({
 	},
 	usersTitle: {
 		marginBottom: 10,
-		alignSelf: 'flex-start',
+		//alignSelf: 'center',
 		fontFamily: 'Manrope_600SemiBold',
-		textAlign: 'center',
+		//textAlign: 'center',
+
 	},
-	userList: {
+	playersHeader: {
+		flexDirection: 'row',
+		//alignItems: 'center',
+		//justifyContent: 'center',
 		width: '100%',
-		marginBottom: 10,
+		marginBottom: 6,
 	},
-	userItem: {
-		padding: 5,
-		borderRadius: 10,
-		marginBottom: 10,
-		borderColor: '#E0E0E0',
-		borderWidth: 1,
+	playersGrid: {
+		width: '100%',
+		alignItems: 'center',
 	},
-	profileImage: {
-		width: 30,
-		height: 30,
-		borderRadius: 15,
-		marginRight: 10,
-		borderWidth: 1,
-		borderColor: '#365C80',
+	playersRow: {
+		flexDirection: 'row',
+		justifyContent: 'space-around',
+		width: '100%',
+		marginBottom: 8,
 	},
-	userName: {
+	playerCell: {
+		width: '33%',
+		alignItems: 'center',
+		paddingVertical: 4,
+	},
+	playerCellName: {
 		fontFamily: 'Manrope_500Medium',
 		textAlign: 'center',
+		marginTop: 2,
 	},
 	emptyListText: {
 		textAlign: 'center',

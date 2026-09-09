@@ -1,5 +1,5 @@
 import React, { FC, useEffect } from 'react';
-import { G, Path, Ellipse, Text as SvgText } from 'react-native-svg';
+import { G, Path, Ellipse, Rect, Text as SvgText } from 'react-native-svg';
 import Animated, { useSharedValue, useAnimatedProps, withTiming, Easing, runOnJS, cancelAnimation } from 'react-native-reanimated';
 import { useAudioPlayer } from 'expo-audio';
 import { useContextProvider } from '@/utils/ContextProvider';
@@ -8,12 +8,13 @@ import runningEffectSrc from '@/assets/sounds/cartoon-running-footsteps.mp3';
 interface playerProps {
 	playerId: number; // ID del jugador para identificarlo en el callback
 	playerIndex: number; // Índice del jugador (0-5) para calcular separación en la salida
-	initialTile: number; //Casilla inicial del jugador    
+	initialTile: number; //Casilla inicial del jugador
 	targetTile: number;
 	scale: number;
 	color: { fill: string, border: string, eyes: string };
 	tilesCoords: { x: number, y: number }[]; // Array con las posiciones de todas las casillas
 	onMoveComplete?: (finalIndex: number, playerId: number) => void; // Callback when animation sequence finishes
+	showName?: boolean; // Mostrar el username dentro del token (default true). Pasar false para mostrarlo fuera (e.g. en el lobby).
 }
 const AnimatedG = Animated.createAnimatedComponent(G);
 const playerIdxOffSet = [{ x: -5, y: 0 }, { x: 5, y: 0 }, { x: -3, y: -3 }, { x: 3, y: -3 }, { x: -3, y: 3 }, { x: 3, y: 3 }]
@@ -57,6 +58,16 @@ const Player: FC<playerProps> = (props) => {
 		runningEffect.seekTo(0);
 		runningEffect.play();
 		const targetPos = props.tilesCoords[toTile];
+		if (!targetPos) {
+			console.warn('[Player] targetPos undefined', {
+				toTile,
+				tilesCoordsLen: props.tilesCoords.length,
+				playerId: props.playerId,
+				targetTile: props.targetTile,
+				initialTile: props.initialTile,
+			});
+			return;
+		}
 		const targetOffset = getOffset(toTile);
 
 		isAnimating.value = true;
@@ -91,7 +102,8 @@ const Player: FC<playerProps> = (props) => {
 			<Ellipse cx="23" cy="23" rx="21" ry="20" fill={props.color.fill} stroke={props.color.border} strokeWidth={5} strokeLinecap='round' strokeLinejoin='round' />
 			<Ellipse rx="3" ry="5" cx="16" cy="16" fill={props.color.eyes} />
 			<Ellipse rx="3" ry="5" cx="29" cy="16" fill={props.color.eyes} />
-			<SvgText fill={props.color.border} stroke='none' fontSize="20" fontWeight="bold" x="20" y="80" textAnchor="middle">
+			<Rect x={-8} y={-25} width={62} height={22} rx={10} ry={10} fill={props.color.fill} stroke={props.color.border} strokeWidth={3} />
+			<SvgText fill={props.color.border} stroke='none' fontSize="14" fontWeight="bold" x="23" y="-9" textAnchor="middle">
 				{playerInfo !== -1 ? playingUsers[playerInfo].username.length > 10 ? playingUsers[playerInfo].username.substring(0, 10) + '...' : playingUsers[playerInfo].username : '?'}
 			</SvgText>
 		</AnimatedG>

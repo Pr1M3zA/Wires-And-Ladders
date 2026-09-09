@@ -63,17 +63,17 @@ export default function ResetPassword() {
       setLoading(true);
       validatePassword();
       validateConfirmPassword();
-      if(newPassword.trim().length > 0 && confirmPassword.trim().length > 0 && !errPassword && !errConfirmPassword) {
-         await fetch(apiURL + '/reset-password', {
-               method: 'POST',
-               headers: {
-                  'Content-Type': 'application/json',
-                  'authorization': verificationToken,
-               },
-               body: JSON.stringify({
-                  newPassword: newPassword.trim(),
-               }),
-            })
+      if (newPassword.trim().length > 0 && confirmPassword.trim().length > 0 && !errPassword && !errConfirmPassword) {
+         await fetch(apiURL + '/users/reset-password', {
+            method: 'POST',
+            headers: {
+               'Content-Type': 'application/json',
+               'authorization': verificationToken,
+            },
+            body: JSON.stringify({
+               newPassword: newPassword.trim(),
+            }),
+         })
             .then(response => response.json())
             .then(data => {
                if (data.hasOwnProperty('affectedRows') && data.affectedRows > 0) {
@@ -89,12 +89,12 @@ export default function ResetPassword() {
          Toast.show({ type: 'error', text1: 'Contraseña no restablecida", "Proporcione datos correctos".', position: 'top', visibilityTime: 3000 });
       }
       setLoading(false);
-   } 
+   }
 
    return (
-      <View style={[styles.container, {backgroundColor: isDarkMode ? '#3C709A' : '#6599c3'}]}>
-         <View style={[styles.topBarContainer, { backgroundColor:  isDarkMode ? '#1F3344' : 'white' }]}></View>
-         <View style={[styles.topContainer, { backgroundColor:  isDarkMode ? '#1F3344' : 'white' }]}>
+      <View style={[styles.container, { backgroundColor: isDarkMode ? '#3C709A' : '#6599c3' }]}>
+         <View style={[styles.topBarContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}></View>
+         <View style={[styles.topContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
             <View style={styles.backContainer}>
                {/* Maybe go back to login or a specific screen, not just previous */}
                <TouchableOpacity onPress={() => router.replace('/Login')} style={{ padding: 10 }}>
@@ -105,11 +105,11 @@ export default function ResetPassword() {
                <Text style={styles.titleText}>Nueva Contraseña</Text>
             </View>
             <View style={styles.emptyContainer}>
-               
+
             </View>
          </View>
 
-         <View style={[styles.contentContainer, { backgroundColor:  isDarkMode ? '#1F3344' : 'white' }]}>
+         <View style={[styles.contentContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
             <Text style={[styles.descriptionText, { fontSize: 16 * fontScale, color: isDarkMode ? '#578BB6' : '#365C80' }]}>
                Ingresa y confirma tu nueva contraseña.
             </Text>
@@ -123,7 +123,7 @@ export default function ResetPassword() {
                      value={newPassword}
                      onChangeText={setNewPassword}
                      onEndEditing={validatePassword}
-                     style={[newPassword.length > 0 ? styles.fieldFilled : styles.fieldEmpty, {flex: 1, color: isDarkMode ? '#A7CFEB' : '#365C80', fontSize: 12 * fontScale}]}
+                     style={[newPassword.length > 0 ? styles.fieldFilled : styles.fieldEmpty, { flex: 1, color: isDarkMode ? '#A7CFEB' : '#365C80', fontSize: 12 * fontScale }]}
                   />
                   <TouchableOpacity onPress={() => setIsPasswordVisible(!isPasswordVisible)}>
                      <Icon name={isPasswordVisible ? 'eye-off' : 'eye'} size={24} color={'#6599C3'} />
@@ -141,7 +141,7 @@ export default function ResetPassword() {
                      value={confirmPassword}
                      onChangeText={setConfirmPassword}
                      onEndEditing={() => validateConfirmPassword()} // Use default params
-                     style={[confirmPassword.length > 0 ? styles.fieldFilled : styles.fieldEmpty, {flex: 1, color: isDarkMode ? '#A7CFEB' : '#365C80', fontSize: 12 * fontScale}]}
+                     style={[confirmPassword.length > 0 ? styles.fieldFilled : styles.fieldEmpty, { flex: 1, color: isDarkMode ? '#A7CFEB' : '#365C80', fontSize: 12 * fontScale }]}
                   />
                   <TouchableOpacity onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}>
                      <Icon name={isConfirmPasswordVisible ? 'eye-off' : 'eye'} size={24} color={'#6599C3'} />
@@ -151,15 +151,15 @@ export default function ResetPassword() {
             </View>
          </View>
 
-         <View style={[styles.buttonContainer, { backgroundColor:  isDarkMode ? '#1F3344' : 'white' }]}>
+         <View style={[styles.buttonContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
             {loading && (<ActivityIndicator size='large' color="#6599C3" />)}
             {!loading && (<TouchableOpacity style={[styles.resetButton, !isButtonActive && styles.buttonDisabled]} onPress={resetPassword} disabled={!isButtonActive}>
                <Text style={[styles.resetText, { fontSize: 12 * fontScale, color: isDarkMode ? '#1F3344' : 'white' }]}>Restablecer Contraseña</Text>
             </TouchableOpacity>)}
          </View>
 
-         <BottomDesign allowRanking={false}/>
-        
+         <BottomDesign allowRanking={false} />
+
       </View>
    );
 }
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
       borderColor: '#B05151', // Red border for error
    },
    fieldEmptyBorder: {
-       borderColor: '#cccccc', // Grey border when empty and no error
+      borderColor: '#cccccc', // Grey border when empty and no error
    },
    errText: {
       fontSize: 11,
@@ -265,8 +265,8 @@ const styles = StyleSheet.create({
       borderWidth: 2,
    },
    buttonDisabled: {
-       backgroundColor: '#B0C4DE', // Lighter color when disabled
-       borderColor: '#B0C4DE',
+      backgroundColor: '#B0C4DE', // Lighter color when disabled
+      borderColor: '#B0C4DE',
    },
    resetText: {
       fontSize: 18,
