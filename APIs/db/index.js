@@ -25,5 +25,4 @@ app.get("/", (req, res) => res.send("API DB de Wires & Ladders v3.2.1"));
 app.set('port', process.env.PORT || 3000);
 app.listen(app.get('port'), '0.0.0.0', () => {
     console.log(`Wires and Ladders DB API v3.2.1 escuchando en el puerto ${app.get('port')}`);
-    console.log(bcrypt.hashSync('PoIuYtReWq1', 10));
 });

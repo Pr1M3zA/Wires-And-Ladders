@@ -177,7 +177,7 @@ routeSync.get('/edu-info-questions/:afterOf', async (req, res) => {
 	try {
 		const afterOf = req.params.afterOf;
 		db = await connect();
-		const [rows] = await db.query(`SELECT id, id_subtopic, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok, is_true_or_false FROM edu_info_and_questions WHERE updated_at > '${afterOf}'`);
+		const [rows] = await db.query(`SELECT iq.id, iq.id_subtopic, st.description subtopic, iq.information, iq.question, iq.answer_1, iq.answer_2, iq.answer_3, iq.answer_4, iq.answer_ok, iq.is_true_or_false FROM edu_info_and_questions iq INNER JOIN edu_subtopics st ON iq.id_subtopic=st.id WHERE iq.updated_at > '${afterOf}'`);
 		res.status(200).json(rows);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -198,5 +198,7 @@ routeSync.get('/edu-knowledge-areas', (req, res) => { res.redirect('/sync/edu-kn
 routeSync.get('/edu-disciplines', (req, res) => { res.redirect('/sync/edu-disciplines/1970-01-01') });
 routeSync.get('/edu-levels', (req, res) => { res.redirect('/sync/edu-levels/1970-01-01') });
 routeSync.get('/edu-info-questions', (req, res) => { res.redirect('/sync/edu-info-questions/1970-01-01') });
+routeSync.get('/update-apk', (req, res) => { res.redirect(process.env.URL_UPDATE_APK) });
+
 
 export { routeSync }

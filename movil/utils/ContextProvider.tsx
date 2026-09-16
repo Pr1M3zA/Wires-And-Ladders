@@ -82,11 +82,11 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 	const [socket, setSocket] = useState<Socket | null>(null);
 	const [tileTypes, setTileTypes] = useState<EffectType[]>([]);
 	const [dices, setDices] = useState<DiceType[]>([]);
-	//const [apiURL, setApiURL] = useState(DEFAULT_API_URL); // prod (vercel)
 
-	const [apiURL, setApiURLState] = useState('http://192.168.68.103:3000'); // dev local
-	const [socketURL, setSocketURLState] = useState('http://192.168.68.103:3001'); // dev local
-	//const [socketURL, setSocketURL] = useState(DEFAULT_SOCKET_URL); // prod (render)
+	const [apiURL, setApiURLState] = useState(DEFAULT_API_URL); // prod (vercel)
+	const [socketURL, setSocketURLState] = useState(DEFAULT_SOCKET_URL); // prod (render)
+	//const [apiURL, setApiURLState] = useState('http://192.168.68.103:3000'); // dev local
+	//const [socketURL, setSocketURLState] = useState('http://192.168.68.103:3001'); // dev local
 
 	const [isDarkMode, setIsDarkMode] = useState(false);
 	const [fontScale, setFontScale] = useState(1);
@@ -145,8 +145,8 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 				}
 				setSocketURLState(savedSocketURL);
 
-				setApiURL('http://192.168.68.103:3000')   // temporal para pruebas (persiste)
-				setSocketURL('http://192.168.68.103:3001')   // temporal para pruebas (persiste)
+				//setApiURL('http://192.168.68.103:3000')   // temporal para pruebas (persiste)
+				//setSocketURL('http://192.168.68.103:3001')   // temporal para pruebas (persiste)
 
 
 			} catch (error) {
