@@ -1,12 +1,5 @@
 import { FC, useRef, useState } from 'react';
-import {
-	View,
-	Text,
-	StyleSheet,
-	TouchableOpacity,
-	Animated,
-	ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView } from 'react-native';
 import type { CustomSubtopicType } from '@/utils/types';
 
 interface SubtopicCardProps {

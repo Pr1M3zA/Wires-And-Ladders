@@ -13,8 +13,10 @@ import SubtopicSelector from '@/components/SubtopicSelector';
 import SubtopicCard from '@/components/SubtopicCard';
 import BoardPreview from '@/components/BoardPreview';
 import { getBoardElements, getCustomSubtopicById } from '@/utils/fetchAndSet';
+import { loadLocalBoard, loadLocalTiles, loadLocalShortcuts, loadLocalCustomSubtopicById } from '@/utils/dbOffline';
 import type { CustomSubtopicType, BoardType, TileType, ShortCutType } from '@/utils/types';
 import Icon from '@expo/vector-icons/Feather';
+import MCI from '@expo/vector-icons/MaterialCommunityIcons';
 
 const Gato = require('@/assets/images/GatoSalvaje.webp');
 
@@ -25,12 +27,19 @@ interface UserInGroup {
 	profileImage?: string | null;
 }
 
+const CAT_BOT: UserInGroup = {
+	socketId: 'bot_catbot',
+	dbUserId: -100,
+	userName: 'CatBot',
+	profileImage: 'catbot',
+};
+
 export default function GamersGroup() {
 	const InitCallHour = new Date();
 	const router = useRouter();
 	const params = useLocalSearchParams<{ mode: string; roomCode: string }>();
 	const { mode, roomCode } = params;
-	const { idUser, setIdUser, userRow, setUserRow, selectSubTopic, apiURL, socketURL, socket, setSocket, isDarkMode, fontScale, playingUsers, setPlayingUsers } = useContextProvider();
+	const { idUser, setIdUser, userRow, setUserRow, selectSubTopic, apiURL, socketURL, socket, setSocket, isApiConnected, isSocketConnected, isDarkMode, fontScale, playingUsers, setPlayingUsers } = useContextProvider();
 	const [usersInGroup, setUsersInGroup] = useState<UserInGroup[]>([]);
 	const [currentRoomCode, setCurrentRoomCode] = useState(roomCode);
 	const [isLoading, setIsLoading] = useState(false);
@@ -43,6 +52,9 @@ export default function GamersGroup() {
 	const [shortcuts, setShortcuts] = useState<ShortCutType[]>([]);
 	const [isBoardLoading, setIsBoardLoading] = useState(false);
 	const [isSubtopicModalVisible, setIsSubtopicModalVisible] = useState(false);
+	const offlineSockets = !isSocketConnected || (isCreator && userRow.id < 1);
+	const isBotInRoom = usersInGroup.some(u => u.dbUserId === -100);
+	const canAddBot = isCreator && !isBotInRoom && usersInGroup.length < 6;
 	const usersInGroupRef = useRef(usersInGroup);
 	const idBoardRef = useRef(idBoardGame);
 	const idSubtopicRef = useRef(idSubtopic);
@@ -60,9 +72,17 @@ export default function GamersGroup() {
 
 	useEffect(() => {
 		setIsBoardLoading(true);
-		getBoardElements(idBoardGame, apiURL, setBoard, setTiles, setShortcuts)
-			.finally(() => setIsBoardLoading(false));
-	}, [idBoardGame]);
+		if (isApiConnected) {
+			getBoardElements(idBoardGame, apiURL, setBoard, setTiles, setShortcuts)
+				.finally(() => setIsBoardLoading(false));
+		} else {
+			Promise.all([
+				loadLocalBoard(idBoardGame).then(setBoard),
+				loadLocalTiles(idBoardGame).then(setTiles),
+				loadLocalShortcuts(idBoardGame).then(setShortcuts),
+			]).finally(() => setIsBoardLoading(false));
+		}
+	}, [idBoardGame, isApiConnected]);
 
 
 	useEffect(() => {
@@ -79,13 +99,31 @@ export default function GamersGroup() {
 
 	const creatorIdUser = playingUsers[0]?.id ?? 0;
 	useEffect(() => {
+		if (!isApiConnected) {
+			if (idSubtopic > 0) {
+				loadLocalCustomSubtopicById(idSubtopic).then(setSelectedCustomSubtopic);
+			}
+			return;
+		}
 		const lookupId = creatorIdUser > 0 ? creatorIdUser : idUser;
 		if (idSubtopic > 0 && lookupId > 0) {
 			getCustomSubtopicById(apiURL, idSubtopic, lookupId, setSelectedCustomSubtopic);
 		}
-	}, [idSubtopic, creatorIdUser, idUser, apiURL]);
+	}, [idSubtopic, creatorIdUser, idUser, apiURL, isApiConnected]);
 
 	useEffect(() => {
+		if (offlineSockets) {
+			if (isCreator) {
+				setUsersInGroup([{
+					socketId: 'offline-self',
+					dbUserId: idUser,
+					userName: userRow.username,
+					profileImage: userRow.profile_image,
+				}]);
+			}
+			return;
+		}
+
 		const newSocket = io(socketURL, {
 			query: {
 				dbUserId: idUser,
@@ -206,12 +244,32 @@ export default function GamersGroup() {
 	}, []);
 
 	const handleStartGame = () => {
-		if (socket && currentRoomCode && isCreator) {
-			if (usersInGroup.length < 2) { // Mínimo 2 jugadores para empezar (o el número que definas)
-				Toast.show({ type: 'info', text1: 'Jugadores Insuficientes', text2: 'Se necesitan al menos 2 jugadores.' });
-				return;
-			}
-			socket.emit('startGame', { roomCode: currentRoomCode });
+		if (!isCreator) return;
+		if (usersInGroup.length < 2) {
+			Toast.show({ type: 'info', text1: 'Jugadores Insuficientes', text2: 'Se necesitan al menos 2 jugadores.' });
+			return;
+		}
+		if (!offlineSockets) {
+			socket?.emit('startGame', { roomCode: currentRoomCode });
+		} else {
+			Toast.show({ type: 'info', text1: '¡Comenzando Partida!', text2: `Iniciando partida local en ${currentRoomCode}` });
+			router.push({
+				pathname: '/BoardGame',
+				params: {
+					gameId: `local_${currentRoomCode}_${Date.now()}`,
+					roomCode: currentRoomCode,
+					players: JSON.stringify(usersInGroupRef.current.map(u => ({
+						dbUserId: u.dbUserId,
+						socketId: u.socketId,
+						userName: u.userName,
+						profileImage: u.profileImage,
+					}))),
+					idBoard: idBoardRef.current,
+					idSubtopic: idSubtopicRef.current,
+					subtopicName: selectedCustomSubtopicRef.current?.subtopic ?? '',
+					isCreator: '1',
+				},
+			});
 		}
 	};
 
@@ -223,6 +281,15 @@ export default function GamersGroup() {
 			if (socket && currentRoomCode && isCreator) {
 				socket.emit('setSubtopic', { roomCode: currentRoomCode, idSubtopic: selectedId });
 			}
+		}
+	};
+
+	const handleAddBot = () => {
+		if (!canAddBot) return;
+		if (!offlineSockets) {
+			socket?.emit('addBot', { roomCode: currentRoomCode });
+		} else {
+			setUsersInGroup(prev => prev.some(u => u.dbUserId === -100) ? prev : [...prev, CAT_BOT]);
 		}
 	};
 
@@ -242,6 +309,16 @@ export default function GamersGroup() {
 			<View style={[styles.playersContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white', paddingHorizontal: 50 / fontScale }]}>
 				<View style={styles.playersHeader}>
 					<Text style={[styles.usersTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale }]}>Jugadores ({playingUsers.length}/6):</Text>
+					{canAddBot && (
+						<TouchableOpacity
+							style={styles.addBotIconBtn}
+							onPress={handleAddBot}
+							accessibilityLabel='Agregar CatBot'
+						>
+							<Text style={[styles.addBotPlus, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale }]}>+</Text>
+							<MCI name='robot-happy-outline' size={20 * fontScale} color={isDarkMode ? '#578BB6' : '#365C80'} />
+						</TouchableOpacity>
+					)}
 				</View>
 				{playingUsers.length === 0 ? (
 					<Text style={styles.emptyListText}>Esperando jugadores...</Text>
@@ -264,6 +341,7 @@ export default function GamersGroup() {
 												color={color}
 												isHost={isHost}
 												isMe={isMe}
+												isBot={user.id === -100}
 											/>
 										</View>
 									);
@@ -422,10 +500,21 @@ const styles = StyleSheet.create({
 	},
 	playersHeader: {
 		flexDirection: 'row',
-		//alignItems: 'center',
-		//justifyContent: 'center',
+		alignItems: 'center',
+		justifyContent: 'space-between',
 		width: '100%',
 		marginBottom: 6,
+	},
+	addBotIconBtn: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 2,
+		paddingHorizontal: 4,
+		paddingVertical: 2,
+	},
+	addBotPlus: {
+		fontWeight: 'bold',
+		lineHeight: 20,
 	},
 	playersGrid: {
 		width: '100%',

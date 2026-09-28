@@ -11,6 +11,8 @@ import {
 
 const DEFAULT_API_URL = 'https://wires-and-ladders-api.vercel.app';
 const DEFAULT_SOCKET_URL = 'https://wires-and-ladders-websocket.onrender.com';
+//const DEFAULT_API_URL = 'http://192.168.68.110:3000';
+//const DEFAULT_SOCKET_URL = 'http://192.168.68.110:3001';
 
 interface contextProps {
 	token: string;
@@ -29,6 +31,8 @@ interface contextProps {
 	setApiURL: (apiURL: string) => void;
 	socketURL: string;
 	setSocketURL: (socketURL: string) => void;
+	isApiConnected: boolean;
+	isSocketConnected: boolean;
 	socket: Socket | null;
 	setSocket: (socket: Socket | null) => void;
 	tileTypes: EffectType[];
@@ -59,6 +63,7 @@ const Context = createContext<contextProps>({
 	playingUsers: [], setPlayingUsers: () => { },
 	apiURL: '', setApiURL: () => { },
 	socketURL: '', setSocketURL: () => { },
+	isApiConnected: false, isSocketConnected: false,
 	defBoard: 1, setDefBoard: () => { },
 	defDice: 1, setDefDice: () => { },
 	tileTypes: [], setTileTypes: () => { },
@@ -82,11 +87,12 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 	const [socket, setSocket] = useState<Socket | null>(null);
 	const [tileTypes, setTileTypes] = useState<EffectType[]>([]);
 	const [dices, setDices] = useState<DiceType[]>([]);
-
 	const [apiURL, setApiURLState] = useState(DEFAULT_API_URL); // prod (vercel)
-	const [socketURL, setSocketURLState] = useState(DEFAULT_SOCKET_URL); // prod (render)
 	//const [apiURL, setApiURLState] = useState('http://192.168.68.103:3000'); // dev local
 	//const [socketURL, setSocketURLState] = useState('http://192.168.68.103:3001'); // dev local
+	const [socketURL, setSocketURLState] = useState(DEFAULT_SOCKET_URL); // prod (render)
+	const [isApiConnected, setIsApiConnected] = useState(false);
+	const [isSocketConnected, setIsSocketConnected] = useState(false);
 
 	const [isDarkMode, setIsDarkMode] = useState(false);
 	const [fontScale, setFontScale] = useState(1);
@@ -145,8 +151,8 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 				}
 				setSocketURLState(savedSocketURL);
 
-				//setApiURL('http://192.168.68.103:3000')   // temporal para pruebas (persiste)
-				//setSocketURL('http://192.168.68.103:3001')   // temporal para pruebas (persiste)
+				setApiURL(DEFAULT_API_URL)   // temporal para pruebas (persiste)
+				setSocketURL(DEFAULT_SOCKET_URL)   // temporal para pruebas (persiste)
 
 
 			} catch (error) {
@@ -185,6 +191,8 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 				isUrlActive(apiURL, { expectedText: EXPECTED_API_RESPONSE }),
 				isUrlActive(socketURL, { expectedText: EXPECTED_SOCKET_RESPONSE }),
 			]);
+			setIsApiConnected(apiRes.active);
+			setIsSocketConnected(sockRes.active);
 			if (!apiRes.active) {
 				Toast.show({ type: 'error', text1: 'API Base de Datos no responde', text2: apiRes.error ?? 'Sin respuesta', visibilityTime: 6000 });
 			}
@@ -199,7 +207,7 @@ export const ContextProvider: React.FC<providerProps> = ({ children }) => {
 		<Context.Provider value={{
 			token, setToken, idUser, setIdUser, userRow, setUserRow, playingUsers, setPlayingUsers, isDarkMode, setIsDarkMode, fontScale, setFontScale,
 			defBoard, setDefBoard, defDice, setDefDice, tileTypes, setTileTypes, dices, setDices,
-			apiURL, socketURL, setApiURL, setSocketURL, socket, setSocket,
+			apiURL, socketURL, setApiURL, setSocketURL, isApiConnected, isSocketConnected, socket, setSocket,
 			eduKnowledgeAreas, setEduKnowledgeAreas, eduDsciplines, setEduDsciplines, eduLevels, setEduLevels, selectSubTopic, setSelectSubTopic
 		}}>
 			{children}

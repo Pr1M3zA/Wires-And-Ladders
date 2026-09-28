@@ -22,6 +22,7 @@ import ModalConfig from '@/components/ModalConfig';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { getHour } from '@/utils/utils';
 import { getBoardElements, getInfoAndQuestions } from '@/utils/fetchAndSet';
+import { loadLocalBoard, loadLocalTiles, loadLocalShortcuts, loadLocalInfoAndQuestions } from '@/utils/dbOffline';
 import type { EduInfoQuestionsType, DiceType, GameBoardParams, PlayerInfoFromLobby, PlayerGameState, GameOverallStats, BoardType, TileType, ShortCutType } from '@/utils/types';
 
 import musicSrc from '@/assets/sounds/game-music-loop-20.mp3';
@@ -50,7 +51,7 @@ export default function BoardGame() {
 	// Constantes del juego
 	const router = useRouter();
 	const params = useLocalSearchParams<GameBoardParams>();
-	const { token, apiURL, socket, idUser, dices, userRow, isDarkMode, setIsDarkMode, fontScale, setFontScale, playingUsers } = useContextProvider();
+	const { token, apiURL, socket, idUser, dices, userRow, isApiConnected, isSocketConnected, isDarkMode, setIsDarkMode, fontScale, setFontScale, playingUsers } = useContextProvider();
 	const idBoard = parseInt(params.idBoard, 10);
 	const idSubtopic = parseInt(params.idSubtopic, 10) || 1;
 	const [board, setBoard] = useState<BoardType | null>(null);
@@ -90,15 +91,29 @@ export default function BoardGame() {
 	const [volEffects, setVolEffects] = useState(1);
 	const [dice, setDice] = useState<DiceType>(dices[0]);
 
+	const isCurrentPlayerBot = playersState[currentPlayerIndex]?.dbUserId === -100;
+
 	useEffect(() => {
-		getInfoAndQuestions(apiURL, idSubtopic, setEducationData);
-	}, [idSubtopic, apiURL]);
+		if (isApiConnected) {
+			getInfoAndQuestions(apiURL, idSubtopic, setEducationData);
+		} else {
+			loadLocalInfoAndQuestions(idSubtopic).then(setEducationData);
+		}
+	}, [idSubtopic, apiURL, isApiConnected]);
 
 	useEffect(() => {
 		setIsBoardLoading(true);
-		getBoardElements(idBoard, apiURL, setBoard, setTiles, setShortcuts)
-			.finally(() => setIsBoardLoading(false));
-	}, []);
+		if (isApiConnected) {
+			getBoardElements(idBoard, apiURL, setBoard, setTiles, setShortcuts)
+				.finally(() => setIsBoardLoading(false));
+		} else {
+			Promise.all([
+				loadLocalBoard(idBoard).then(setBoard),
+				loadLocalTiles(idBoard).then(setTiles),
+				loadLocalShortcuts(idBoard).then(setShortcuts),
+			]).finally(() => setIsBoardLoading(false));
+		}
+	}, [idBoard, isApiConnected]);
 
 	useEffect(() => {   // Control de abandono de partida
 		const backAction = () => {   // Cuando se presione el botón back o el gesto equivalente
@@ -247,19 +262,48 @@ export default function BoardGame() {
 		setPlayersState(newPlayersStateAfterLanding);
 
 		if (tileEffect === 'Informativo' || tileEffect === 'Pregunta') {
-			const randomThemeIdx = Math.floor(Math.random() * educationData.length);
-			const selectedItem = educationData[randomThemeIdx];
-			setCurrentEducationItem(selectedItem);
-			setModalType(tileEffect as 'Informativo' | 'Pregunta');
-			setIsModalVisible(true);
-			newLog += (tileEffect === 'Informativo') ? ', viendo ℹ️' : ', respond❓';
-			setCurrentActionLog(newLog);
-			// We emit the intermediate state here before they answer/close modal
-			if (socket) {
-				socket.emit('broadcastGameState', {
-					roomCode: params.roomCode,
-					gameState: { playersState: newPlayersStateAfterLanding, currentPlayerIndex, gameEnded: false, winnerUserId: null, lastDiceResult, currentActionLog: newLog }
-				});
+			const randomThemeIdx = educationData.length > 0 ? Math.floor(Math.random() * educationData.length) : 0;
+			const selectedItem = educationData[randomThemeIdx] ?? null;
+
+			if (isCurrentPlayerBot) {
+				if (tileEffect === 'Informativo') {
+					newLog += ', viendo ℹ️';
+					setCurrentActionLog(newLog);
+					finalizeTurnAndProceed(updatedPlayer, landedTileIndex, newPlayersStateAfterLanding, newLog);
+				} else {
+					const randomAnswer = Math.floor(Math.random() * 4) + 1;
+					const botPlayer = { ...updatedPlayer };
+					let botState = newPlayersStateAfterLanding;
+					if (selectedItem) {
+						if (randomAnswer === selectedItem.answer_ok) {
+							botPlayer.pointsAccumulated += 5;
+							botPlayer.correctAnswers += 1;
+							newLog += ', respondió ✅ +5';
+						} else {
+							botPlayer.pointsAccumulated -= 5;
+							newLog += ', respondió ❌ -5';
+						}
+						botState = botState.map((p, idx) => idx === currentPlayerIndex ? botPlayer : p);
+						setPlayersState(botState);
+					} else {
+						newLog += ', respondió ❓ (sin datos)';
+					}
+					setCurrentActionLog(newLog);
+					finalizeTurnAndProceed(botPlayer, landedTileIndex, botState, newLog);
+				}
+			} else {
+				setCurrentEducationItem(selectedItem);
+				setModalType(tileEffect as 'Informativo' | 'Pregunta');
+				setIsModalVisible(true);
+				newLog += (tileEffect === 'Informativo') ? ', viendo ℹ️' : ', respond❓';
+				setCurrentActionLog(newLog);
+				// We emit the intermediate state here before they answer/close modal
+				if (socket) {
+					socket.emit('broadcastGameState', {
+						roomCode: params.roomCode,
+						gameState: { playersState: newPlayersStateAfterLanding, currentPlayerIndex, gameEnded: false, winnerUserId: null, lastDiceResult, currentActionLog: newLog }
+					});
+				}
 			}
 		}
 		else {
@@ -324,7 +368,7 @@ export default function BoardGame() {
 			setCurrentPlayerIndex(nextPlayerTurnIdx);
 			const nextPlayer = allPlayersArray[nextPlayerTurnIdx];
 			if (nextPlayer) {
-				setIsMyTurn(nextPlayer.dbUserId === idUser);
+				setIsMyTurn(nextPlayer.dbUserId === idUser || nextPlayer.dbUserId === -100);
 			} else {
 				console.warn("El siguiente jugador es indefinido, no se puede establecer isMyTurn");
 				setIsMyTurn(false);
@@ -373,7 +417,7 @@ export default function BoardGame() {
 				setPlayersState(initialPlayersState);
 				setGameOverallStats({ gameId: params.gameId, roomCode: params.roomCode, startTime: new Date(), endTime: null, winnerUserId: null });
 				setCurrentPlayerIndex(0);
-				setIsMyTurn(initialPlayersState[0]?.dbUserId === idUser);
+				setIsMyTurn(initialPlayersState[0]?.dbUserId === idUser || initialPlayersState[0]?.dbUserId === -100);
 				//console.log("Juego inicializado para:", initialPlayersState.map(p => p.userName).join(', '));
 			} catch (error) {
 				Toast.show({ type: 'error', text1: 'Error de Juego', text2: 'No se pudo cargar la información de la partida.' });
@@ -388,6 +432,11 @@ export default function BoardGame() {
 		GUARDAR ESTADÍSTICAS DEL JUEGO EN BDD AL FINALIZAR
 	----------------------------------------------------*/
 	const saveGameStats = async () => {
+
+		if (!isApiConnected) {
+			Toast.show({ type: 'info', text1: 'Sin conexión', text2: 'Las estadísticas no se guardaron (modo offline).' });
+			return;
+		}
 
 		const finalPlayersState = playersState; // Usar el estado más reciente
 		const finalGameStats = { ...gameOverallStats, endTime: gameOverallStats.endTime || new Date() };
@@ -461,7 +510,8 @@ export default function BoardGame() {
 				setIsMyTurn(false); // Nadie tiene el turno si el juego terminó
 			} else {
 				// Recalcular isMyTurn basado en el estado recibido solo si el juego no ha terminado
-				setIsMyTurn(receivedGameState.playersState[receivedGameState.currentPlayerIndex]?.dbUserId === idUser);
+				const nextDb = receivedGameState.playersState[receivedGameState.currentPlayerIndex]?.dbUserId;
+				setIsMyTurn(nextDb === idUser || nextDb === -100);
 			}
 			setIsSocketLoading(false);
 		});
@@ -645,6 +695,7 @@ export default function BoardGame() {
 								scale={dice.scale} lineWidth={dice.border_width}
 								colors={{ faceUpColor: dice.color_faceup, faceLeftColor: dice.color_faceleft, faceRightColor: dice.color_faceright, line: dice.color_border, dots: dice.color_dots }}
 								isAnimated={true}
+								autoSpin={isCurrentPlayerBot}
 							/>
 						</Svg>
 					)}

@@ -8,7 +8,7 @@ routeSync.get('/lastupdate', async (req, res) => {
 	let db;
 	try {
 		db = await connect();
-		const [rows] = await db.query(`SELECT table_name, last_update FROM vwLastUpdate`);
+		const [rows] = await db.query(`	`);
 		res.status(200).json(rows);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -135,7 +135,7 @@ routeSync.get('/edu-knowledge-areas/:afterOf', async (req, res) => {
 	try {
 		const afterOf = req.params.afterOf;
 		db = await connect();
-		const [rows] = await db.query(`SELECT id, description, details FROM edu_knowledge_areas WHERE updated_at > '${afterOf}'`);
+		const [rows] = await db.query(`SELECT id, description, details, color, material_design_icon FROM edu_knowledge_areas WHERE updated_at > '${afterOf}'`);
 		res.status(200).json(rows);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -172,6 +172,35 @@ routeSync.get('/edu-levels/:afterOf', async (req, res) => {
 	}
 });
 
+routeSync.get('/edu-topics/:afterOf', async (req, res) => {
+	let db;
+	try {
+		const afterOf = req.params.afterOf;
+		db = await connect();
+		const [rows] = await db.query(`SELECT id, id_discipline, id_level, description, details FROM edu_topics WHERE updated_at > '${afterOf}'`);
+		res.status(200).json(rows);
+	} catch (err) {
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
+
+routeSync.get('/edu-subtopics/:afterOf', async (req, res) => {
+	let db;
+	try {
+		const afterOf = req.params.afterOf;
+		db = await connect();
+		const [rows] = await db.query(`SELECT id, id_topic, description, details FROM edu_subtopics WHERE updated_at > '${afterOf}'`);
+		res.status(200).json(rows);
+	} catch (err) {
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
+
+
 routeSync.get('/edu-info-questions/:afterOf', async (req, res) => {
 	let db;
 	try {
@@ -186,19 +215,31 @@ routeSync.get('/edu-info-questions/:afterOf', async (req, res) => {
 	}
 });
 
-
-
 routeSync.get('/board-backgrounds', (req, res) => { res.redirect('/sync/board-backgrounds/1970-01-01') });
 routeSync.get('/boards', (req, res) => { res.redirect('/sync/boards/1970-01-01') });
 routeSync.get('/tiles', (req, res) => { res.redirect('/sync/tiles/1970-01-01') });
+routeSync.get('/tile/:id', async (req, res) => {
+	let db;
+	try {
+		const { id } = req.params;
+		db = await connect();
+		const [rows] = await db.query(`SELECT t.id, id_board, num_tile, pos_x, pos_y, tile_type, rotation, radius, border_width, direction, tt.effect_name FROM tiles t INNER JOIN tile_types tt ON t.tile_type=tt.id WHERE t.id = ${id}`);
+		res.status(200).json(rows);
+	} catch (err) {
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
 routeSync.get('/shortcuts', (req, res) => { res.redirect('/sync/shortcuts/1970-01-01') });
 routeSync.get('/tile-types', (req, res) => { res.redirect('/sync/tile-types/1970-01-01') });
 routeSync.get('/dices', (req, res) => { res.redirect('/sync/dices/1970-01-01') });
 routeSync.get('/edu-knowledge-areas', (req, res) => { res.redirect('/sync/edu-knowledge-areas/1970-01-01') });
 routeSync.get('/edu-disciplines', (req, res) => { res.redirect('/sync/edu-disciplines/1970-01-01') });
 routeSync.get('/edu-levels', (req, res) => { res.redirect('/sync/edu-levels/1970-01-01') });
+routeSync.get('/edu-topics', (req, res) => { res.redirect('/sync/edu-topics/1970-01-01') });
+routeSync.get('/edu-subtopics', (req, res) => { res.redirect('/sync/edu-subtopics/1970-01-01') });
 routeSync.get('/edu-info-questions', (req, res) => { res.redirect('/sync/edu-info-questions/1970-01-01') });
 routeSync.get('/update-apk', (req, res) => { res.redirect(process.env.URL_UPDATE_APK) });
-
 
 export { routeSync }

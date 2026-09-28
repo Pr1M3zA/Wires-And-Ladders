@@ -21,7 +21,7 @@ export default function Lobby() {
 	}
 	const router = useRouter();
 	//let user = { id: 0, username: 'guest', first_name: 'Invitado', last_name: '', email: '', profile_image: null, isAdmin: false }
-	const { token, apiURL, setIdUser, userRow, setUserRow, setDefDice, setDefBoard, isDarkMode, fontScale } = useContextProvider();
+	const { token, setToken, apiURL, setIdUser, userRow, setUserRow, setDefDice, setDefBoard, isApiConnected, isDarkMode, fontScale } = useContextProvider();
 	//const [userRow, setUserRow] = useState(user);
 	const [image, setImage] = useState(Platform.OS === 'web' ? Gato : Image.resolveAssetSource(Gato).uri);
 	const [gameCode, setGameCode] = useState('');
@@ -29,8 +29,15 @@ export default function Lobby() {
 	const guestMode = userRow.id < 1;
 
 	useEffect(() => {
-		if (token.length > 0 && userRow.email.length === 0) getUserData();
-	}, [token]);
+		if (!isApiConnected && (token.length > 0 || userRow.id > 0)) {
+			setToken('');
+			setUserRow({ id: 0, username: 'guest', first_name: 'Invitado', last_name: '', email: '', profile_image: null, is_admin: false, id_board: 1, id_dice: 1, id_subtopic: 1 });
+		}
+	}, []);
+
+	useEffect(() => {
+		if (token.length > 0 && userRow.email.length === 0 && isApiConnected) getUserData();
+	}, [token, isApiConnected]);
 
 	useEffect(() => {
 		if (userRow.profile_image != null) { // cargar la imagen si no es null
@@ -94,8 +101,8 @@ export default function Lobby() {
 			{/* Room make or join */}
 			<View style={[styles.mainContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
 				<TouchableOpacity
-					disabled={guestMode}
-					style={[styles.makeButton, { backgroundColor: guestMode ? '#B0C4DE' : '#6599c3' }]}
+					disabled={isApiConnected && guestMode}
+					style={[styles.makeButton, { backgroundColor: (isApiConnected && guestMode) ? '#B0C4DE' : '#6599c3' }]}
 					onPress={() => router.push({ pathname: '/GamersGroup', params: { mode: 0, roomCode: makeCode() } })}
 				>
 					<Text style={[styles.makeText, { fontSize: 20 * fontScale, color: isDarkMode ? '#1F3344' : 'white' }]}>Crea una partida</Text>
@@ -115,14 +122,18 @@ export default function Lobby() {
 						/>
 					</View>
 					<View style={styles.joinButtonContainer}>
-						<TouchableOpacity style={styles.joinButton} onPress={() => router.push({ pathname: '/GamersGroup', params: { mode: 1, roomCode: gameCode } })}>
+						<TouchableOpacity
+							disabled={!isApiConnected}
+							style={[styles.joinButton, !isApiConnected && styles.joinButtonDisabled]}
+							onPress={() => router.push({ pathname: '/GamersGroup', params: { mode: 1, roomCode: gameCode } })}
+						>
 							<Text style={[styles.joinButtonText, { fontSize: 18 * fontScale, color: isDarkMode ? '#1F3344' : 'white' }]}>Unirse</Text>
 							<Icon name={'users'} size={24} color={'white'} />
 						</TouchableOpacity>
 					</View>
 				</View>
 			</View>
-			<BottomDesign allowRanking={true} />
+			<BottomDesign allowRanking={isApiConnected} />
 		</View>
 	)
 }
@@ -219,6 +230,9 @@ const styles = StyleSheet.create({
 		backgroundColor: '#6599c3',
 		padding: 5,
 		flexDirection: 'row'
+	},
+	joinButtonDisabled: {
+		backgroundColor: '#B0C4DE',
 	},
 	joinButtonText: {
 		fontFamily: 'Manrope_400Regular',

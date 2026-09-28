@@ -3,6 +3,7 @@ import { View, Text, Image, StyleSheet } from 'react-native';
 import { useContextProvider } from '@/utils/ContextProvider';
 
 const Gato = require('@/assets/images/GatoSalvaje.webp');
+const CatBot = require('@/assets/images/catbot.jpg');
 
 interface PlayerColor {
 	fill: string;
@@ -17,12 +18,20 @@ interface PlayerCardProps {
 	size?: number;
 	isHost?: boolean;
 	isMe?: boolean;
+	isBot?: boolean;
 }
 
-const PlayerCard: FC<PlayerCardProps> = ({ image, name, color, size = 80, isHost, isMe }) => {
+const PlayerCard: FC<PlayerCardProps> = ({ image, name, color, size = 80, isHost, isMe, isBot }) => {
 	const badgeFontSize = size * 0.13;
 	const nameBadgeHeight = badgeFontSize * 1.8;
 	const { isDarkMode } = useContextProvider()
+	const source = image === 'catbot' ? CatBot
+		: image ? { uri: 'data:image/webp;base64,' + image }
+		: Gato;
+	const badges: string[] = [];
+	if (isMe) badges.push('(Tú)');
+	if (isHost) badges.push('(Host)');
+	if (isBot) badges.push('(BOT)');
 
 	return (
 		<View style={styles.container}>
@@ -35,7 +44,7 @@ const PlayerCard: FC<PlayerCardProps> = ({ image, name, color, size = 80, isHost
 				}]}>
 					<Image
 						style={[styles.avatarImg, { width: size, height: size, borderRadius: size / 2 }]}
-						source={image ? { uri: 'data:image/webp;base64,' + image } : Gato}
+						source={source}
 						resizeMode="cover"
 					/>
 				</View>
@@ -48,9 +57,9 @@ const PlayerCard: FC<PlayerCardProps> = ({ image, name, color, size = 80, isHost
 					<Text numberOfLines={1} style={[styles.nameBadgeText, { fontSize: badgeFontSize, color: color.border }]}>{name}</Text>
 				</View>
 			</View>
-			{(isMe || isHost) && (
+			{badges.length > 0 && (
 				<Text style={[styles.roleText, { color: isDarkMode ? color.fill : color.border }]}>
-					{isMe ? '(Tú)' : ''}{isMe && isHost ? ' ' : ''}{isHost ? '(Host)' : ''}
+					{badges.join(' ')}
 				</Text>
 			)}
 		</View>

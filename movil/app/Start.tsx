@@ -13,14 +13,14 @@ import * as UIElements from '@/utils/ui-elements.json';
 //import * as SQLite from 'expo-sqlite';
 import ModalConfig from '@/components/ModalConfig';
 import { getDices, getTileTypes } from '@/utils/fetchAndSet';
+import { InitOfflineDb, loadLocalDices, loadLocalTileTypes } from '@/utils/dbOffline';
 //import AsyncStorage from '@react-native-async-storage/async-storage';
 //import type { LastUpdate } from '@/utils/types';
 
 const darkColors: { [key: string]: string } = UIElements.start.dark_colors;
 
 export default function Start() {
-	const { token, setToken, userRow, setUserRow, apiURL, isDarkMode, setIsDarkMode, fontScale, setFontScale, dices,
-		setTileTypes, setDices, setEduKnowledgeAreas, setEduDsciplines, setEduLevels } = useContextProvider();
+	const { token, setToken, userRow, setUserRow, apiURL, isApiConnected, isDarkMode, setIsDarkMode, fontScale, setFontScale, dices, setTileTypes, setDices } = useContextProvider();
 	const router = useRouter();
 	const [layoutBottom, setLayoutBottom] = useState({ x: 0, y: 0, width: 0, height: 0 });
 	const [layoutTop, setLayoutTop] = useState({ x: 0, y: 0, width: 0, height: 0 });
@@ -31,9 +31,18 @@ export default function Start() {
 	const [volEffects, setVolEffects] = useState(1);
 	const [idxDice, setIdxDice] = useState(0);	//const [forceSyncDb, setForceSyncDb] = useState(false)
 	useEffect(() => {
-		getDices(apiURL, setDices);
-		getTileTypes(apiURL, setTileTypes);
+		InitOfflineDb();
 	}, []);
+
+	useEffect(() => {
+		if (isApiConnected) {
+			getDices(apiURL, setDices);
+			getTileTypes(apiURL, setTileTypes);
+		} else {
+			loadLocalDices().then(setDices);
+			loadLocalTileTypes().then(setTileTypes);
+		}
+	}, [isApiConnected]);
 	const handleLayoutBottom = (event: any) => { setLayoutBottom(event.nativeEvent.layout) };
 	const handleLayoutTop = (event: any) => { setLayoutTop(event.nativeEvent.layout) };
 	/*
@@ -107,7 +116,7 @@ export default function Start() {
 		<View style={[styles.container, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
 			<View style={styles.titleContainer} onLayout={handleLayoutTop}>
 				<View style={styles.titleSides}>
-					{token.length > 0 &&
+					{token.length > 0 && isApiConnected &&
 						<TouchableOpacity onPress={logOut} >
 							<Icon name='log-out' size={40} color={'red'} />
 						</TouchableOpacity>
@@ -142,21 +151,29 @@ export default function Start() {
 				</View>
 			</View>
 			<View style={styles.buttonsContainer}>
-				<TouchableOpacity style={[styles.loginButton, { backgroundColor: isDarkMode ? '#3C709A' : '#6599C3' }]} onPress={() => router.push(token.length > 0 ? '/Lobby' : '/Login')}>
-					<Text style={[styles.loginText, { fontSize: 20 * fontScale, color: isDarkMode ? '#1F3344' : 'white' }]}>{token.length > 0 ? 'Continuar' : 'Iniciar sesión'}</Text>
-				</TouchableOpacity>
+				{isApiConnected &&
+					<TouchableOpacity style={[styles.loginButton, { backgroundColor: isDarkMode ? '#3C709A' : '#6599C3' }]} onPress={() => router.push(token.length > 0 ? '/Lobby' : '/Login')}>
+						<Text style={[styles.loginText, { fontSize: 20 * fontScale, color: isDarkMode ? '#1F3344' : 'white' }]}>{token.length > 0 ? 'Continuar' : 'Iniciar sesión'}</Text>
+					</TouchableOpacity>
+				}
 
-				{token.length == 0 &&
+				{token.length == 0 && isApiConnected &&
 					<TouchableOpacity style={[styles.registerButton, { borderColor: isDarkMode ? '#578BB6' : '#6599C3' }]} onPress={() => router.push('/Register')}>
 						<Text style={[styles.registerText, { fontSize: 20 * fontScale, color: isDarkMode ? '#578BB6' : '#6599C3' }]}>Crear cuenta</Text>
 					</TouchableOpacity>}
 
-				{token.length == 0 &&
+				{!isApiConnected &&
+					<TouchableOpacity style={[styles.loginButton, { backgroundColor: isDarkMode ? '#3C709A' : '#6599C3' }]} onPress={() => router.navigate('/Lobby')}>
+						<Text style={[styles.loginText, { fontSize: 20 * fontScale, color: isDarkMode ? '#1F3344' : 'white' }]}>Continuar como Invitado</Text>
+					</TouchableOpacity>
+				}
+
+				{token.length == 0 && isApiConnected &&
 					<TouchableOpacity style={styles.guestButton} onPress={() => router.navigate('/Lobby')}>
 						<Text style={[styles.guestText, { fontSize: 12 * fontScale, color: isDarkMode ? '#578BB6' : '#365C80' }]}>o, continuar como Invitado</Text>
 					</TouchableOpacity>}
 
-				{token.length > 0 && userRow.is_admin &&
+				{token.length > 0 && userRow.is_admin && isApiConnected &&
 					<TouchableOpacity style={styles.dashboard} onPress={() => router.navigate('/Dashboard')} >
 						<Icon name='bar-chart-2' size={32} color={'green'} />
 						<Icon name='pie-chart' size={32} color={'purple'} />

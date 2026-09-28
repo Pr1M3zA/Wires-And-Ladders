@@ -1,6 +1,6 @@
 
-export const EXPECTED_API_RESPONSE = 'API DB de Wires & Ladders';
-export const EXPECTED_SOCKET_RESPONSE = 'API Socket.IO de Wires & Ladders';
+export const EXPECTED_API_RESPONSE = 'API DB de Wires&Ladders';
+export const EXPECTED_SOCKET_RESPONSE = 'API Socket.IO de Wires&Ladders';
 
 function getHour(ahora: Date = new Date()) {
   //const ahora = new Date();

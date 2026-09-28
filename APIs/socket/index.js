@@ -111,6 +111,25 @@ io.on('connection', (socket) => {
       }
    })
 
+   socket.on('addBot', ({ roomCode }) => {
+      const room = rooms[roomCode];
+      if (!room || room.creatorSocketId !== socket.id) {
+         socket.emit('addBotError', { message: 'Solo el creador puede agregar el bot.' });
+         return;
+      }
+      if (room.users.length >= room.maxUsers) {
+         socket.emit('addBotError', { message: 'La sala está llena.' });
+         return;
+      }
+      if (room.users.some(u => u.dbUserId === -100)) {
+         socket.emit('addBotError', { message: 'Ya hay un bot en la sala.' });
+         return;
+      }
+      const botUser = { socketId: 'bot_catbot', dbUserId: -100, userName: 'CatBot', profileImage: 'catbot' };
+      room.users.push(botUser);
+      io.to(roomCode).emit('groupUpdate', { users: room.users, idBoard: room.idBoard, idSubtopic: room.idSubtopic });
+   })
+
 
    socket.on('startGame', ({ roomCode }) => {
       const room = rooms[roomCode];
@@ -192,7 +211,7 @@ io.on('connection', (socket) => {
 
 });
 
-app.get("/", (req, res) => res.send("API Socket.IO de Wires & Ladders - (v1.7)"));
+app.get("/", (req, res) => res.send("API Socket.IO de Wires&Ladders - (v1.7)"));
 
 server.listen(SOCKET_PORT, () => {
    console.log(`Servidor Socket.IO escuchando en el puerto ${SOCKET_PORT}`);

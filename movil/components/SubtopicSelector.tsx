@@ -3,6 +3,7 @@ import { View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView } from 'rea
 import Icon from '@expo/vector-icons/Feather';
 import { useContextProvider } from '@/utils/ContextProvider';
 import { getCustomSubtopics } from '@/utils/fetchAndSet';
+import { loadLocalCustomSubtopics } from '@/utils/dbOffline';
 import SubtopicCard from '@/components/SubtopicCard';
 import type { CustomSubtopicType } from '@/utils/types';
 
@@ -12,17 +13,23 @@ interface SubtopicSelectorProps {
 }
 
 const SubtopicSelector: FC<SubtopicSelectorProps> = ({ isModalVisible, handleModalClose }) => {
-	const { apiURL, token, isDarkMode, fontScale } = useContextProvider();
+	const { apiURL, token, isApiConnected, isDarkMode, fontScale } = useContextProvider();
 	const [subtopics, setSubtopics] = useState<CustomSubtopicType[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 
 	useEffect(() => {
 		if (isModalVisible && subtopics.length === 0) {
 			setIsLoading(true);
-			getCustomSubtopics(apiURL, token, setSubtopics)
-				.finally(() => setIsLoading(false));
+			if (isApiConnected) {
+				getCustomSubtopics(apiURL, token, setSubtopics)
+					.finally(() => setIsLoading(false));
+			} else {
+				loadLocalCustomSubtopics()
+					.then(setSubtopics)
+					.finally(() => setIsLoading(false));
+			}
 		}
-	}, [isModalVisible]);
+	}, [isModalVisible, isApiConnected]);
 
 	const onSelectSubtopic = (item: CustomSubtopicType) => {
 		handleModalClose(item.id_subtopic, item);
