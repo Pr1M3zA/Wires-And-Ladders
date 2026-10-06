@@ -389,7 +389,7 @@ export default function GamersGroup() {
 							onPress={() => setIsSubtopicModalVisible(true)}
 						>
 							<Icon name='plus-circle' size={20 * fontScale} color='white' />
-							<Text style={{ color: 'white', fontSize: 12 * fontScale, marginLeft: 6 }}>Seleccionar Subtema</Text>
+							<Text style={{ color: 'white', fontSize: 12 * fontScale, marginLeft: 6 }}>Seleccionar tema</Text>
 						</TouchableOpacity>
 					) : null}
 				</View>

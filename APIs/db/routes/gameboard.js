@@ -38,7 +38,7 @@ routeGame.get('/board-backgrounds/:id', async (req, res) => {
 	let db;
 	try {
 		db = await connect();
-		const [rows] = await db.query(`SELECT id, background_name, rect_width, rect_height, color_rect, color_path1, color_path2, path1, path2 FROM board_backgrounds WHERE id= ${req.params.id}'`);
+		const [rows] = await db.query(`SELECT id, background_name, rect_width, rect_height, color_rect, color_path1, color_path2, path1, path2 FROM board_backgrounds WHERE id= ${req.params.id}`);
 		res.status(200).json(rows);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -47,11 +47,11 @@ routeGame.get('/board-backgrounds/:id', async (req, res) => {
 	}
 });
 
-routeGame.get('/boards', async (req, res) => {
+routeGame.get('/boards', checkToken, async (req, res) => {
 	let db;
 	try {
 		db = await connect();
-		const [rows] = await db.query(`SELECT b.id, board_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2 FROM boards b INNER JOIN board_backgrounds bb ON b.id_background=bb.id ORDER BY b.id`);
+		const [rows] = await db.query(`SELECT id, board_name, board_description, id_background, background_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2, sin_efecto, positivas, negativas, informativas, preguntas, especiales FROM vw_board WHERE (created_by=${req.idUser} OR created_by=1)`);
 		res.status(200).json(rows);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -64,10 +64,32 @@ routeGame.get('/boards/:id', async (req, res) => {
 	let db;
 	try {
 		db = await connect();
-		const [rows] = await db.query(`SELECT b.id, board_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2 FROM boards b INNER JOIN board_backgrounds bb ON b.id_background=bb.id WHERE b.id = ${req.params.id}`);
+		const [rows] = await db.query(`SELECT id, board_name, board_description, id_background, background_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2, sin_efecto, positivas, negativas, informativas, preguntas, especiales FROM vw_board WHERE id = ${req.params.id}`);
 		res.status(200).json(rows[0] || null);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
+
+
+routeGame.post('/board', checkToken, async (req, res) => {
+	let db;
+	try {
+		db = await connect();
+		const { source_board, board_name, board_description } = req.body;
+		const query = 'CALL SP_DUPLICATE_BOARD(?, ?, ?, ?)';
+		const [result] = await db.execute(query, [
+			source_board ?? 0,
+			board_name ?? '',
+			board_description ?? '',
+			req.idUser,
+		]);
+		res.status(200).json(result)
+	} catch (err) {
+		//console.log(err)
+		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
 	} finally {
 		if (db) await db.end();
 	}
