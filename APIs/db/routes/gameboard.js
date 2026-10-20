@@ -47,11 +47,11 @@ routeGame.get('/board-backgrounds/:id', async (req, res) => {
 	}
 });
 
-routeGame.get('/boards', checkToken, async (req, res) => {
+	routeGame.get('/boards', checkToken, async (req, res) => {
 	let db;
 	try {
 		db = await connect();
-		const [rows] = await db.query(`SELECT id, board_name, board_description, id_background, background_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2, sin_efecto, positivas, negativas, informativas, preguntas, especiales FROM vw_board WHERE (created_by=${req.idUser} OR created_by=1)`);
+		const [rows] = await db.query(`SELECT id, board_name, board_description, id_background, background_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2, sin_efecto, positivas, negativas, informativas, preguntas, especiales, created_by FROM vw_board WHERE (created_by=${req.idUser} OR created_by=1)`);
 		res.status(200).json(rows);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -60,11 +60,11 @@ routeGame.get('/boards', checkToken, async (req, res) => {
 	}
 });
 
-routeGame.get('/boards/:id', async (req, res) => {
+	routeGame.get('/boards/:id', async (req, res) => {
 	let db;
 	try {
 		db = await connect();
-		const [rows] = await db.query(`SELECT id, board_name, board_description, id_background, background_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2, sin_efecto, positivas, negativas, informativas, preguntas, especiales FROM vw_board WHERE id = ${req.params.id}`);
+		const [rows] = await db.query(`SELECT id, board_name, board_description, id_background, background_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2, sin_efecto, positivas, negativas, informativas, preguntas, especiales, created_by FROM vw_board WHERE id = ${req.params.id}`);
 		res.status(200).json(rows[0] || null);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -108,6 +108,51 @@ routeGame.get('/tiles/:idboard', async (req, res) => {
 	}
 });
 
+routeGame.put('/tile', checkToken, async (req, res) => {
+	let db;
+	try {
+		db = await connect();
+		const { id, tile_type } = req.body;
+		const query = 'UPDATE tiles SET tile_type = ? WHERE id = ?';
+		const [result] = await db.execute(query, [tile_type, id]);
+		res.status(200).json(result);
+	} catch (err) {
+		return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
+
+routeGame.post('/shortcut', checkToken, async (req, res) => {
+	let db;
+	try {
+		db = await connect();
+		const { id_board, from_tile, to_tile } = req.body;
+		const query = 'INSERT INTO shortcuts (id_board, from_tile, to_tile) VALUES (?, ?, ?)';
+		const [result] = await db.execute(query, [id_board, from_tile, to_tile]);
+		res.status(200).json({ id: result.insertId, id_board, from_tile, to_tile });
+	} catch (err) {
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
+
+routeGame.put('/shortcut', checkToken, async (req, res) => {
+	let db;
+	try {
+		db = await connect();
+		const { id, from_tile, to_tile } = req.body;
+		const query = 'UPDATE shortcuts SET from_tile = ?, to_tile = ? WHERE id = ?';
+		const [result] = await db.execute(query, [from_tile, to_tile, id]);
+		res.status(200).json(result);
+	} catch (err) {
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
+
 routeGame.get('/shortcuts/:idboard', async (req, res) => {
 	let db;
 	try {
@@ -125,16 +170,16 @@ routeGame.get('/shortcuts/:idboard', async (req, res) => {
 
 function checkToken(req, res, next) {
 	const token = req.headers['authorization'];
-	if (typeof token === 'undefined')
-		res.sendStatus(403)
-	else {
-		const tokenData = jwt.verify(token, process.env.SECRET, (err, data) => {
-			if (err)
-				res.sendStatus(403);
-			else
-				req.idUser = data.idUser
-		})
+	if (typeof token === 'undefined') {
+		res.sendStatus(403);
+		return;
+	}
+	try {
+		const data = jwt.verify(token, process.env.SECRET);
+		req.idUser = data.idUser;
 		next();
+	} catch (err) {
+		res.sendStatus(403);
 	}
 }
 

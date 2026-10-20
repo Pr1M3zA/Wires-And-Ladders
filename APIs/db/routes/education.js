@@ -133,7 +133,10 @@ routeEdu.post('/topics', checkToken, async (req, res) => {
    try {
       db = await connect();
       const { id_discipline, id_level, description, details } = req.body;
-      const [rows] = await db.query(`INSERT INTO edu_topics (id_discipline, id_level, description, details, created_by) VALUES (${id_discipline}, ${id_level}, '${description}', '${details}', ${req.idUser})`);
+      const [rows] = await db.query(
+         "INSERT INTO edu_topics (id_discipline, id_level, description, details, created_by) VALUES (?, ?, ?, ?, ?)",
+         [id_discipline, id_level, description, details, req.idUser]
+      );
       res.status(200).json({ message: "Topic added successfully", insertId: rows.insertId });
    } catch (err) {
       res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -147,7 +150,10 @@ routeEdu.put('/topics', checkToken, async (req, res) => {
    try {
       db = await connect();
       const { id, id_level, description, details } = req.body;
-      const [rows] = await db.query(`UPDATE edu_topics SET id_level=${id_level}, description='${description}', details='${details}' WHERE id=${id}`);
+      const [rows] = await db.query(
+         "UPDATE edu_topics SET id_level=?, description=?, details=? WHERE id=?",
+         [id_level, description, details, id]
+      );
       res.status(200).json({ message: "Topic updated successfully" });
    }
    catch (err) {
@@ -220,7 +226,10 @@ routeEdu.post('/subtopics', checkToken, async (req, res) => {
    try {
       db = await connect();
       const { id_topic, description, details } = req.body;
-      const [rows] = await db.query(`INSERT INTO edu_subtopics (id_topic, description, details, created_by) VALUES (${id_topic}, '${description}', '${details}', ${req.idUser})`);
+      const [rows] = await db.query(
+         "INSERT INTO edu_subtopics (id_topic, description, details, created_by) VALUES (?, ?, ?, ?)",
+         [id_topic, description, details, req.idUser]
+      );
       res.status(200).json({ message: "Subtopic added successfully", insertId: rows.insertId });
    } catch (err) {
       res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -234,7 +243,10 @@ routeEdu.put('/subtopics', checkToken, async (req, res) => {
    try {
       db = await connect();
       const { id, id_topic, description, details } = req.body;
-      const [rows] = await db.query(`UPDATE edu_subtopics SET description='${description}', details='${details}' WHERE id=${id}`);
+      const [rows] = await db.query(
+         "UPDATE edu_subtopics SET description=?, details=? WHERE id=?",
+         [description, details, id]
+      );
       res.status(200).json({ message: "Subtopic updated successfully" });
    } catch (err) {
       res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -248,7 +260,10 @@ routeEdu.delete('/subtopics/:id', checkToken, async (req, res) => {
    try {
       db = await connect();
       const { id } = req.params;
-      const [rows] = await db.query(`DELETE FROM edu_subtopics WHERE id=${id}`);
+      const [rows] = await db.query(
+         "DELETE FROM edu_subtopics WHERE id=?",
+         [id]
+      );
       res.status(200).json({ message: "Subtopic deleted successfully" });
    } catch (err) {
       res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -335,13 +350,12 @@ routeEdu.post('/info-and-questions', checkToken, async (req, res) => {
    try {
       db = await connect();
       const { id_subtopic, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok } = req.body;
-      //let query = `CALL SP_ADD_EDUCATION_DATA('${generation}', '${theme}', '${information}', '${question}', '${answer_1}', '${answer_2}', '${answer_3}', '${answer_4}', ${answer_ok}, ${id})`;
-      const query = `INSERT INTO edu_info_and_questions (id_subtopic, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok, created_by) 
-                  VALUES (${id_subtopic}, '${information}', '${question}', '${answer_1}', '${answer_2}', '${answer_3}', '${answer_4}', ${answer_ok}, ${req.idUser})`;
-      const [result] = await db.execute(query);
+      const [result] = await db.execute(
+         "INSERT INTO edu_info_and_questions (id_subtopic, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         [id_subtopic, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok, req.idUser]
+      );
       res.status(200).json({ message: 'Datos educativos agregados correctamente', id: result.insertId })
    } catch (err) {
-      //console.log(err)
       return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
    } finally {
       if (db) await db.end();
@@ -354,12 +368,12 @@ routeEdu.put('/info-and-questions', checkToken, async (req, res) => {
    try {
       db = await connect();
       const { id, id_subtopic, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok } = req.body;
-      //let query = `CALL SP_EDIT_EDUCATION_DATA(${id}, ${generation}, '${theme}', '${information}', '${question}', '${answer_1}', '${answer_2}', '${answer_3}', '${answer_4}', ${answer_ok})`;
-      const query = `UPDATE edu_info_and_questions SET id_subtopic=${id_subtopic}, information='${information}', question='${question}', answer_1='${answer_1}', answer_2='${answer_2}', answer_3='${answer_3}', answer_4='${answer_4}', answer_ok=${answer_ok} WHERE id=${id}`;
-      const [result] = await db.execute(query);
+      const [result] = await db.execute(
+         "UPDATE edu_info_and_questions SET id_subtopic=?, information=?, question=?, answer_1=?, answer_2=?, answer_3=?, answer_4=?, answer_ok=? WHERE id=?",
+         [id_subtopic, information, question, answer_1, answer_2, answer_3, answer_4, answer_ok, id]
+      );
       res.status(200).json({ message: 'Datos educativos modificados correctamente' })
    } catch (err) {
-      //console.log(err)
       return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
    } finally {
       if (db) await db.end();
@@ -370,11 +384,12 @@ routeEdu.delete('/info-and-questions/:id', checkToken, async (req, res) => {
    let db;
    try {
       db = await connect();
-      const query = `DELETE FROM edu_info_and_questions WHERE id = ${req.params.id}`;
-      const [result] = await db.execute(query);
+      const [result] = await db.execute(
+         "DELETE FROM edu_info_and_questions WHERE id = ?",
+         [req.params.id]
+      );
       res.status(200).json({ message: 'Datos educativos eliminados correctamente' })
    } catch (err) {
-      //console.log(err)
       return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
    } finally {
       if (db) await db.end();
