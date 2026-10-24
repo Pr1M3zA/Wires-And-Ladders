@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, useEffect, useRef, use } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Switch, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Switch, Image, useWindowDimensions } from 'react-native';
 import BottomDesign from '@/components/BottomDesign';
 import PlayerCard from '@/components/PlayerCard';
 import * as gameItems from '@/utils/gameitems.json';
@@ -10,8 +10,9 @@ import Toast from 'react-native-toast-message';
 import { getHour } from '@/utils/utils';
 import Loading from '@/components/Loading';
 import SubtopicSelector from '@/components/SubtopicSelector';
+import BoardSelector from '@/components/BoardSelector';
+import BoardCard from '@/components/BoardCard';
 import SubtopicCard from '@/components/SubtopicCard';
-import BoardPreview from '@/components/BoardPreview';
 import { getBoardElements, getCustomSubtopicById } from '@/utils/fetchAndSet';
 import { loadLocalBoard, loadLocalTiles, loadLocalShortcuts, loadLocalCustomSubtopicById } from '@/utils/dbOffline';
 import type { CustomSubtopicType, BoardType, TileType, ShortCutType } from '@/utils/types';
@@ -40,6 +41,8 @@ export default function GamersGroup() {
 	const params = useLocalSearchParams<{ mode: string; roomCode: string }>();
 	const { mode, roomCode } = params;
 	const { idUser, setIdUser, userRow, setUserRow, selectSubTopic, apiURL, socketURL, socket, setSocket, isApiConnected, isSocketConnected, isDarkMode, fontScale, playingUsers, setPlayingUsers } = useContextProvider();
+	const { height: screenHeight } = useWindowDimensions();
+	const cardHeight = Math.round(screenHeight * 0.15);
 	const [usersInGroup, setUsersInGroup] = useState<UserInGroup[]>([]);
 	const [currentRoomCode, setCurrentRoomCode] = useState(roomCode);
 	const [isLoading, setIsLoading] = useState(false);
@@ -52,6 +55,7 @@ export default function GamersGroup() {
 	const [shortcuts, setShortcuts] = useState<ShortCutType[]>([]);
 	const [isBoardLoading, setIsBoardLoading] = useState(false);
 	const [isSubtopicModalVisible, setIsSubtopicModalVisible] = useState(false);
+	const [isBoardModalVisible, setIsBoardModalVisible] = useState(false);
 	const offlineSockets = !isSocketConnected || (isCreator && userRow.id < 1);
 	const isBotInRoom = usersInGroup.some(u => u.dbUserId === -100);
 	const canAddBot = isCreator && !isBotInRoom && usersInGroup.length < 6;
@@ -165,7 +169,7 @@ export default function GamersGroup() {
 			if (userRow.is_admin)
 				Toast.show({ type: 'info', text1: 'Sala creada', text2: `API SOCKETS (roomCreated): respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
 			else
-				Toast.show({ type: 'success', text1: 'Sala Creada', text2: `Código: ${roomCode} | Host: :${serverPort}` });
+				Toast.show({ type: 'success', text1: 'Sala Creada', text2: `Código: ${roomCode}` });
 		});
 
 		newSocket.on('joinedRoom', ({ roomCode, users, serverPort, idSubtopic: roomSubtopic }: { roomCode: string; users: UserInGroup[], serverPort?: number, idSubtopic?: number }) => {
@@ -177,7 +181,7 @@ export default function GamersGroup() {
 			if (userRow.is_admin)
 				Toast.show({ type: 'info', text1: 'Te uniste a la sala', text2: `API SOCKETS (joinedRoom): Respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
 			else
-				Toast.show({ type: 'success', text1: 'Te Uniste a la Sala', text2: `Código: ${roomCode} | Host: :${serverPort}` });
+				Toast.show({ type: 'success', text1: 'Te Uniste a la Sala', text2: `Código: ${roomCode}` });
 		});
 
 		newSocket.on('groupUpdate', ({ users, idBoard, idSubtopic: groupSubtopic }: { users: UserInGroup[], idBoard: number, idSubtopic?: number }) => {
@@ -284,6 +288,16 @@ export default function GamersGroup() {
 		}
 	};
 
+	const handleSelectBoard = (selectedId?: number) => {
+		setIsBoardModalVisible(false);
+		if (selectedId) {
+			setIdBoardGame(selectedId);
+			if (socket && currentRoomCode && isCreator) {
+				socket.emit('setBoard', { roomCode: currentRoomCode, idBoard: selectedId });
+			}
+		}
+	};
+
 	const handleAddBot = () => {
 		if (!canAddBot) return;
 		if (!offlineSockets) {
@@ -354,33 +368,32 @@ export default function GamersGroup() {
 
 			<View style={[styles.bottomCardsRow, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
 				<View style={{ flex: 1, paddingRight: 5 }}>
-					<Text style={[styles.usersTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale }]}>Tablero</Text>
-					<BoardPreview board={board} tiles={tiles} shortcuts={shortcuts} isDarkMode={isDarkMode} />
+					<View style={styles.boardHeaderRow}>
+						<Text style={[styles.usersTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale, marginBottom: 0 }]}>Tablero</Text>
+					</View>
+					<BoardCard
+						board={board}
+						tiles={tiles}
+						shortcuts={shortcuts}
+						isDarkMode={isDarkMode}
+						fontScale={fontScale}
+						isCurrentBoard={true}
+						onPress={isCreator ? () => setIsBoardModalVisible(true) : undefined}
+						height={cardHeight}
+					/>
 				</View>
 				<View style={{ flex: 1, paddingLeft: 5 }}>
 					{selectedCustomSubtopic ? (
 						<View style={styles.subtopicColumn}>
-							<View style={styles.subtopicHeaderRow}>
-								<Text style={[styles.usersTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale, marginBottom: 0 }]}>
-									Tema
-								</Text>
-								{isCreator && (
-									<TouchableOpacity
-										style={styles.changeSubtopicBtn}
-										onPress={() => setIsSubtopicModalVisible(true)}
-									>
-										<Icon
-											name='refresh-cw'
-											size={14 * fontScale}
-											color={isDarkMode ? '#578BB6' : '#365C80'}
-										/>
-									</TouchableOpacity>
-								)}
-							</View>
+							<Text style={[styles.usersTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale, marginBottom: 10 }]}>
+								Tema
+							</Text>
 							<SubtopicCard
 								item={selectedCustomSubtopic}
 								isDarkMode={isDarkMode}
 								fontScale={fontScale}
+								onPress={isCreator ? () => setIsSubtopicModalVisible(true) : undefined}
+								height={cardHeight}
 							/>
 						</View>
 					) : isCreator ? (
@@ -389,7 +402,7 @@ export default function GamersGroup() {
 							onPress={() => setIsSubtopicModalVisible(true)}
 						>
 							<Icon name='plus-circle' size={20 * fontScale} color='white' />
-							<Text style={{ color: 'white', fontSize: 12 * fontScale, marginLeft: 6 }}>Seleccionar tema</Text>
+							<Text style={{ color: 'white', fontSize: 12 * fontScale, marginLeft: 6 }}>Seleccionar Subtema</Text>
 						</TouchableOpacity>
 					) : null}
 				</View>
@@ -412,6 +425,12 @@ export default function GamersGroup() {
 			<SubtopicSelector
 				isModalVisible={isSubtopicModalVisible}
 				handleModalClose={handleSelectSubtopic}
+			/>
+
+			<BoardSelector
+				isModalVisible={isBoardModalVisible}
+				handleModalClose={handleSelectBoard}
+				currentBoardId={idBoardGame}
 			/>
 
 		</View>
@@ -454,14 +473,14 @@ const styles = StyleSheet.create({
 	subtopicColumn: {
 		width: '100%',
 	},
-	subtopicHeaderRow: {
+	boardHeaderRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
 		marginBottom: 10,
 		width: '100%',
 	},
-	changeSubtopicBtn: {
+	changeBoardBtn: {
 		paddingVertical: 4,
 		paddingHorizontal: 6,
 	},

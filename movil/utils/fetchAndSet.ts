@@ -50,20 +50,63 @@ export const getBoardElements = async (idboard: number, apiURL: string, setBoard
 
 }
 
-export const getAllBoards = async (apiURL: string, setBoards: Function) => {
+export const getAllBoards = async (
+   apiURL: string,
+   token: string,
+   setBoards: Function,
+   setTiles?: Function,
+   setShortcuts?: Function
+) => {
    const apiClient = new ApiClient(apiURL || '');
-   await apiClient.get(`game/boards`)
-      .then(response => response.json())
-      .then(data => {
-         if (Array.isArray(data)) {
-            setBoards(data);
-         } else {
-            Toast.show({ type: 'error', text1: 'Error (Get All Boards)', text2: errorMsg(data) });
-            setBoards([]);
-         }
-      })
-      .catch(error => { Toast.show({ type: 'error', text1: 'Error (Get All Boards)', text2: error.message }) });
+   const requests: Promise<any>[] = [
+      apiClient.get(`game/boards`, token)
+         .then(response => response.json())
+         .then(data => {
+            if (Array.isArray(data)) {
+               setBoards(data);
+            } else {
+               Toast.show({ type: 'error', text1: 'Error (Get All Boards)', text2: errorMsg(data) });
+               setBoards([]);
+            }
+         })
+         .catch(error => { Toast.show({ type: 'error', text1: 'Error (Get All Boards)', text2: error.message }) })
+   ];
+
+   if (setTiles) {
+      requests.push(
+         apiClient.get(`game/tiles`, token)
+            .then(response => response.json())
+            .then(data => {
+               if (Array.isArray(data)) {
+                  setTiles(data);
+               } else {
+                  Toast.show({ type: 'error', text1: 'Error (Get All Tiles)', text2: errorMsg(data) });
+                  setTiles([]);
+               }
+            })
+            .catch(error => { Toast.show({ type: 'error', text1: 'Error (Get All Tiles)', text2: error.message }) })
+      );
+   }
+
+   if (setShortcuts) {
+      requests.push(
+         apiClient.get(`game/shortcuts`, token)
+            .then(response => response.json())
+            .then(data => {
+               if (Array.isArray(data)) {
+                  setShortcuts(data);
+               } else {
+                  Toast.show({ type: 'error', text1: 'Error (Get All Shortcuts)', text2: errorMsg(data) });
+                  setShortcuts([]);
+               }
+            })
+            .catch(error => { Toast.show({ type: 'error', text1: 'Error (Get All Shortcuts)', text2: error.message }) })
+      );
+   }
+
+   await Promise.all(requests);
 }
+
 
 export const getDices = async (apiUrl: string, setDices: Function) => {
    const apiClient = new ApiClient(apiUrl || '');

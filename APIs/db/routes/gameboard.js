@@ -47,11 +47,11 @@ routeGame.get('/board-backgrounds/:id', async (req, res) => {
 	}
 });
 
-	routeGame.get('/boards', checkToken, async (req, res) => {
+routeGame.get('/boards', checkToken, async (req, res) => {
 	let db;
 	try {
 		db = await connect();
-		const [rows] = await db.query(`SELECT id, board_name, board_description, id_background, background_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2, sin_efecto, positivas, negativas, informativas, preguntas, especiales, created_by FROM vw_board WHERE (created_by=${req.idUser} OR created_by=1)`);
+		const [rows] = await db.query(`SELECT DISTINCT id, board_name, board_description, id_background, background_name, width, height, rect_width, rect_height, path1, path2, color_rect, color_path1, color_path2, sin_efecto, positivas, negativas, informativas, preguntas, especiales, created_by FROM my_boards WHERE created_by=${req.idUser} OR id_user_participant=${req.idUser}`);
 		res.status(200).json(rows);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -60,7 +60,7 @@ routeGame.get('/board-backgrounds/:id', async (req, res) => {
 	}
 });
 
-	routeGame.get('/boards/:id', async (req, res) => {
+routeGame.get('/boards/:id', async (req, res) => {
 	let db;
 	try {
 		db = await connect();
@@ -100,6 +100,20 @@ routeGame.get('/tiles/:idboard', async (req, res) => {
 	try {
 		db = await connect();
 		const [rows] = await db.query(`SELECT t.id, id_board, num_tile, pos_x, pos_y, tile_type, rotation, radius, border_width, direction, tt.effect_name FROM tiles t INNER JOIN tile_types tt ON t.tile_type=tt.id WHERE t.id_board = ${req.params.idboard} ORDER BY num_tile`);
+		res.status(200).json(rows);
+	} catch (err) {
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
+
+
+routeGame.get('/tiles', checkToken, async (req, res) => {
+	let db;
+	try {
+		db = await connect();
+		const [rows] = await db.query(`SELECT DISTINCT id, id_board, num_tile, pos_x, pos_y, tile_type, rotation, radius, border_width, direction, effect_name FROM my_boards_tiles WHERE created_by=${req.idUser} OR id_user_participant=${req.idUser} ORDER BY id_board, num_tile`);
 		res.status(200).json(rows);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
@@ -158,6 +172,20 @@ routeGame.get('/shortcuts/:idboard', async (req, res) => {
 	try {
 		db = await connect();
 		const [rows] = await db.query(`SELECT id, id_board, from_tile, to_tile FROM shortcuts WHERE id_board = ${req.params.idboard}`);
+		res.status(200).json(rows);
+	} catch (err) {
+		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
+	} finally {
+		if (db) await db.end();
+	}
+});
+
+
+routeGame.get('/shortcuts', checkToken, async (req, res) => {
+	let db;
+	try {
+		db = await connect();
+		const [rows] = await db.query(`SELECT DISTINCT id, id_board, from_tile, to_tile FROM my_boards_shortcuts WHERE created_by=${req.idUser} OR id_user_participant=${req.idUser}`);
 		res.status(200).json(rows);
 	} catch (err) {
 		res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });

@@ -5,6 +5,7 @@ import { routeDash } from './routes/dashboard.js'
 import { routeSync } from './routes/syncboard.js'
 import { routeEdu } from './routes/education.js'
 import { routeUser } from './routes/user.js'
+import { routeGroups } from './routes/groups.js'
 
 const API_VERSION = "3.2.3"
 
@@ -19,6 +20,7 @@ app.use('/dashboard', routeDash)
 app.use("/sync", routeSync)
 app.use("/education", routeEdu)
 app.use("/users", routeUser)
+app.use("/groups", routeGroups)
 
 app.get("/", (req, res) => res.send(`API DB de Wires&Ladders v${API_VERSION}`));
 

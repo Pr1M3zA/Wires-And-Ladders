@@ -195,7 +195,7 @@ routeEdu.get('/subtopics/:idTopic', checkToken, async (req, res) => {
    try {
       db = await connect();
       const { idTopic } = req.params;
-      const [rows] = await db.query(`SELECT id, id_discipline, id_topic, description, details, created_by, tot_questions, knowledge_area, discipline, topic, color FROM vw_subtopics_resumen WHERE (created_by=${req.idUser} OR created_by=1) AND id_topic = ${idTopic} ORDER BY id`);
+      const [rows] = await db.query(`SELECT id, id_discipline, id_topic, description, details, created_by, tot_questions, knowledge_area, discipline, topic, color FROM vw_subtopics_resumen WHERE (created_by=${req.idUser} OR created_by=1) AND (id_topic = ${idTopic} OR ${idTopic} = 0) ORDER BY id`);
       res.status(200).json(rows);
    } catch (err) {
       res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" });
