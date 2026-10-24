@@ -11,7 +11,7 @@ import {
 
 const DEFAULT_API_URL = 'https://wires-and-ladders-api.vercel.app';
 const DEFAULT_SOCKET_URL = 'https://wires-and-ladders-websocket.onrender.com';
-//const DEFAULT_API_URL = 'http://192.168.68.110:3000';
+//const DEFAULT_API_URL = 'http://192.168.68.108:3000';
 //const DEFAULT_SOCKET_URL = 'http://192.168.68.110:3001';
 
 interface contextProps {

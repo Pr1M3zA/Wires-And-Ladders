@@ -1,19 +1,19 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Dimensions, Platform, View, Text, StyleSheet, BackHandler, Alert, Image } from 'react-native';
+import { Dimensions, Platform, View, Text, StyleSheet, BackHandler, Alert, Image, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import { useContextProvider } from '@/utils/ContextProvider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Svg, { Path, G } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
-import Background from '@/components/Background';
-import HexTile from '@/components/HexTile';
-import Wire from '@/components/Wire';
-import Ladder from '@/components/Ladder';
+import BoardStatic from '@/components/BoardStatic';
+
+
+
 import Cube from '@/components/Cube';
 import Hexagon from '@/components/Hexagon';
 import Dice from '@/components/Dice';
 import Player from '@/components/Player';
-import StartFinishLine from '@/components/StartFinishLine';
+
 import * as gameItems from '@/utils/gameitems.json';
 //import educationData from '@/utils/education.json'; 
 import ModalEducation from '@/components/modalEducation';
@@ -35,8 +35,8 @@ import correctSrc from '@/assets/sounds/correct.mp3'
 import Loading from '@/components/Loading';
 
 const playerColors = gameItems.playerColors;
-const wireScaleColor = { fill: 'green', border: 'black' };
-const ladderColor = { base: 'sandybrown', rung: 'saddlebrown' };
+
+
 
 export default function BoardGame() {
 	const InitCallHour = new Date()
@@ -52,6 +52,7 @@ export default function BoardGame() {
 	const router = useRouter();
 	const params = useLocalSearchParams<GameBoardParams>();
 	const { token, apiURL, socket, idUser, dices, userRow, isApiConnected, isSocketConnected, isDarkMode, setIsDarkMode, fontScale, setFontScale, playingUsers } = useContextProvider();
+	const isHost = params.isCreator === '1' || (playingUsers.length > 0 && idUser === playingUsers[0]?.id);
 	const idBoard = parseInt(params.idBoard, 10);
 	const idSubtopic = parseInt(params.idSubtopic, 10) || 1;
 	const [board, setBoard] = useState<BoardType | null>(null);
@@ -61,9 +62,11 @@ export default function BoardGame() {
 	// Derivaciones del tablero - memoizadas para referencias estables (evitan re-animar Players)
 	const hexTiles = useMemo(() => tiles.filter(t => t.id_board === idBoard), [tiles, idBoard]);
 	const shortCuts = useMemo(() => shortcuts.filter(s => s.id_board === idBoard), [shortcuts, idBoard]);
-	const canvas_width = !board ? 0 : board.width === 0 ? Dimensions.get('window').width : board.width;
+	const windowWidth = useWindowDimensions().width;
+	const canvas_width = !board ? 0 : board.width === 0 ? (windowWidth || 320) : board.width;
 	const canvas_height = !board ? 0 : board.height;
 	const [layoutBottom, setLayoutBottom] = useState({ x: 0, y: 0, width: 0, height: 0 });
+	const [gameAreaWidth, setGameAreaWidth] = useState(windowWidth || 320);
 
 	// Estados del juego
 	const [playersState, setPlayersState] = useState<PlayerGameState[]>([]);
@@ -76,7 +79,6 @@ export default function BoardGame() {
 	const [isMyTurn, setIsMyTurn] = useState(false);
 	const [gameEnded, setGameEnded] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
-	const [isSocketLoading, setIsSocketLoading] = useState(false);
 	const [currentActionLog, setCurrentActionLog] = useState<string>('');
 
 	// Estados para las ventanas sobrepuestas
@@ -368,7 +370,7 @@ export default function BoardGame() {
 			setCurrentPlayerIndex(nextPlayerTurnIdx);
 			const nextPlayer = allPlayersArray[nextPlayerTurnIdx];
 			if (nextPlayer) {
-				setIsMyTurn(nextPlayer.dbUserId === idUser || nextPlayer.dbUserId === -100);
+				setIsMyTurn(nextPlayer.dbUserId === idUser || (isHost && nextPlayer.dbUserId === -100));
 			} else {
 				console.warn("El siguiente jugador es indefinido, no se puede establecer isMyTurn");
 				setIsMyTurn(false);
@@ -417,7 +419,7 @@ export default function BoardGame() {
 				setPlayersState(initialPlayersState);
 				setGameOverallStats({ gameId: params.gameId, roomCode: params.roomCode, startTime: new Date(), endTime: null, winnerUserId: null });
 				setCurrentPlayerIndex(0);
-				setIsMyTurn(initialPlayersState[0]?.dbUserId === idUser || initialPlayersState[0]?.dbUserId === -100);
+				setIsMyTurn(initialPlayersState[0]?.dbUserId === idUser || (isHost && initialPlayersState[0]?.dbUserId === -100));
 				//console.log("Juego inicializado para:", initialPlayersState.map(p => p.userName).join(', '));
 			} catch (error) {
 				Toast.show({ type: 'error', text1: 'Error de Juego', text2: 'No se pudo cargar la información de la partida.' });
@@ -481,41 +483,57 @@ export default function BoardGame() {
 	};
 	/*----------------------------------------------
 		// DEFINICIÓN DEL SOCKET PARA MULTIJUGADOR
-	------------------------------------------------*/
+		------------------------------------------------*/
+	const handleGameStateUpdated = useCallback((receivedGameState: {
+		playersState: PlayerGameState[];
+		currentPlayerIndex: number;
+		gameEnded: boolean;
+		winnerUserId: number | null;
+		lastDiceResult: number;
+		currentActionLog?: string;
+	}) => {
+		setPlayersState(receivedGameState.playersState);
+		setCurrentPlayerIndex(receivedGameState.currentPlayerIndex);
+		setGameEnded(receivedGameState.gameEnded);
+		setLastDiceResult(receivedGameState.lastDiceResult);
+		if (receivedGameState.currentActionLog) {
+			setCurrentActionLog(receivedGameState.currentActionLog);
+		}
+		if (receivedGameState.winnerUserId) {
+			setGameOverallStats(prev => ({ ...prev, winnerUserId: receivedGameState.winnerUserId, endTime: prev.endTime || new Date() }));
+		}
+		if (receivedGameState.gameEnded) {
+			setIsGameStatsModalVisible(true);
+			setIsMyTurn(false);
+		} else {
+			const nextDb = receivedGameState.playersState[receivedGameState.currentPlayerIndex]?.dbUserId;
+			setIsMyTurn(nextDb === idUser || (isHost && nextDb === -100));
+		}
+	}, [idUser, isHost]);
+
+	const handleGameStateUpdatedRef = useRef(handleGameStateUpdated);
+	useEffect(() => { handleGameStateUpdatedRef.current = handleGameStateUpdated; }, [handleGameStateUpdated]);
+
+	const stableGameStateHandler = useCallback((receivedGameState: {
+		playersState: PlayerGameState[];
+		currentPlayerIndex: number;
+		gameEnded: boolean;
+		winnerUserId: number | null;
+		lastDiceResult: number;
+		currentActionLog?: string;
+	}) => {
+		handleGameStateUpdatedRef.current(receivedGameState);
+	}, []);
+
 	useEffect(() => {
-		if (!socket || isSocketLoading) return
+		if (!socket) return;
 
-		setIsSocketLoading(true);
+		socket.on('gameStateUpdated', stableGameStateHandler);
 
-		socket.on('gameStateUpdated', (receivedGameState: {
-			playersState: PlayerGameState[];
-			currentPlayerIndex: number;
-			gameEnded: boolean;
-			winnerUserId: number | null;
-			lastDiceResult: number;
-			currentActionLog?: string;
-		}) => {
-			setPlayersState(receivedGameState.playersState);
-			setCurrentPlayerIndex(receivedGameState.currentPlayerIndex);
-			setGameEnded(receivedGameState.gameEnded);
-			setLastDiceResult(receivedGameState.lastDiceResult);
-			if (receivedGameState.currentActionLog) {
-				setCurrentActionLog(receivedGameState.currentActionLog);
-			}
-			if (receivedGameState.winnerUserId) {
-				setGameOverallStats(prev => ({ ...prev, winnerUserId: receivedGameState.winnerUserId, endTime: prev.endTime || new Date() }));
-			}
-			if (receivedGameState.gameEnded) {
-				setIsGameStatsModalVisible(true); // Mostrar modal a todos los jugadores cuando el juego termina
-				setIsMyTurn(false); // Nadie tiene el turno si el juego terminó
-			} else {
-				// Recalcular isMyTurn basado en el estado recibido solo si el juego no ha terminado
-				const nextDb = receivedGameState.playersState[receivedGameState.currentPlayerIndex]?.dbUserId;
-				setIsMyTurn(nextDb === idUser || nextDb === -100);
-			}
-			setIsSocketLoading(false);
-		});
-	}, [isSocketLoading, socket]);
+		return () => {
+			socket.off('gameStateUpdated', stableGameStateHandler);
+		};
+	}, [socket, stableGameStateHandler]);
 	/*---------------------------------------------------
 		HANDLE MODAL ACTIONS
 	----------------------------------------------------*/
@@ -610,68 +628,58 @@ export default function BoardGame() {
 	/*---------------------------------------------------
 		MOSTRAR PANTALLA DE CARGA
 	---------------------------------------------------*/
-	if (isLoading || isBoardLoading || !board || playersState.length === 0) {
+	if (isLoading || isBoardLoading || !board || playersState.length === 0 || canvas_width <= 0 || canvas_height <= 0) {
 		return (
 			<Loading />
 		);
 	}
 
+	const boardWidth = Math.min(gameAreaWidth, 420);
+	const boardHeight = canvas_width > 0 ? boardWidth * (canvas_height / canvas_width) : 0;
+
 	return (
 		<View style={styles.container}>
-			<Animated.View style={[styles.gameArea, { height: canvas_height, width: canvas_width }]}>
-				<Animated.ScrollView >
-					<Svg width="100%" height={canvas_height} >
-						<Background
-							width={canvas_width} height={canvas_height} patternWidth={board ? board.rect_width : 60} patternHeight={board ? board.rect_height : 36}
-							colors={{ color1: board ? board.color_rect : "white", color2: board ? board.color_path1 : "linen", color3: board ? board.color_path2 : "mintcream" }}
-							svgPath1={board ? board.path1 : ''} svgPath2={board ? board.path2 : ''}
+			<View style={[styles.gameArea, { width: '100%' }]} onLayout={e => {
+				const w = e.nativeEvent.layout.width;
+				if (w > 0) setGameAreaWidth(w);
+			}}>
+				<Animated.ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center' }}>
+					<View style={{ width: boardWidth, height: boardHeight }}>
+						<BoardStatic
+							width={boardWidth}
+							height={boardHeight}
+							canvasWidth={canvas_width}
+							canvasHeight={canvas_height}
+							board={board}
+							hexTiles={hexTiles}
+							wires={wires}
+							ladders={ladders}
 						/>
-						{hexTiles.map((item, index) => {
-							if (item.effect_name === 'Inicio' || item.effect_name === 'Meta')
-								return (
-									<StartFinishLine key={index}
-										pos={{ x: item.pos_x, y: item.pos_y }}
-										size={{ width: canvas_width - item.pos_x, height: item.radius }}
-										tileType={item.tile_type}
-										titleText={item.effect_name === 'Inicio' ? 'SALIDA' : 'META'}
-									/>);
-							else {
-								return (<HexTile {...item} key={index} />);
-							}
-
-						})}
-						{wires.map((wire, index) => {
-							return (
-								<Wire key={index} width={10} scaleColor={wireScaleColor}
-									from={{ x: hexTiles[wire.from_tile].pos_x, y: hexTiles[wire.from_tile].pos_y }}
-									to={{ x: hexTiles[wire.to_tile].pos_x, y: hexTiles[wire.to_tile].pos_y }}
-								/>)
-						})}
-						{ladders.map((ladder, index) => {
-							return (
-								<Ladder key={index} scale={1} color={ladderColor}
-									from={{ x: hexTiles[ladder.from_tile].pos_x, y: hexTiles[ladder.from_tile].pos_y }}
-									to={{ x: hexTiles[ladder.to_tile].pos_x, y: hexTiles[ladder.to_tile].pos_y }}
-								/>)
-						})}
-						{/* Renderizar un Player por cada jugador */}
-						{playersState.map((player, idx) => (
-							<Player
-								key={`player-${player.dbUserId}`}
-								playerId={player.dbUserId}
-								//playerName={player.userName.length > 10 ? player.userName.substring(0, 10) + '...' : player.userName}
-								targetTile={player.targetTile}
-								initialTile={player.currentTile}
-								scale={0.8}
-								color={player.color}
-								playerIndex={idx}
-								onMoveComplete={stableOnMoveComplete}
-								tilesCoords={allTilesCoords}
-							/>
-						))}
-					</Svg>
+						<Svg
+							width={boardWidth}
+							height={boardHeight}
+							viewBox={`0 0 ${canvas_width} ${canvas_height}`}
+							preserveAspectRatio="xMidYMid meet"
+							style={StyleSheet.absoluteFill}
+							pointerEvents="none"
+						>
+							{playersState.map((player, idx) => (
+								<Player
+									key={`player-${player.dbUserId}`}
+									playerId={player.dbUserId}
+									targetTile={player.targetTile}
+									initialTile={player.currentTile}
+									scale={0.8}
+									color={player.color}
+									playerIndex={idx}
+									onMoveComplete={stableOnMoveComplete}
+									tilesCoords={allTilesCoords}
+								/>
+							))}
+						</Svg>
+					</View>
 				</Animated.ScrollView>
-			</Animated.View>
+			</View>
 
 			<View style={styles.controlArea} onLayout={(event: any) => { setLayoutBottom(event.nativeEvent.layout) }}>
 				{/* Hexágono contenedor del dado */}

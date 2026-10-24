@@ -2,7 +2,7 @@ import { FC } from 'react'
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native'
 import Ribbon from '@/components/Ribbon';
 import Crown from '@/components/Crown';
-import Svg, { G, Image as SvgImage } from 'react-native-svg';
+import Svg, { G, Image as SvgImage, Defs, ClipPath, Circle } from 'react-native-svg';
 import { useContextProvider } from '@/utils/ContextProvider';
 import type { PlayerGameState, PlayingUserType } from '@/utils/types';
 const Gato = require('@/assets/images/GatoSalvaje.webp');
@@ -55,19 +55,19 @@ const ModalGameStats: FC<ModalGameStatsProps> = (props) => {
 						</View>
 						{props.winnerUserId && <>
 							<Svg width={"100%"} height={135} >
+								<Defs>
+									<ClipPath id="winnerAvatarClip">
+										<Circle cx={middleModal} cy={85} r={50} />
+									</ClipPath>
+								</Defs>
 								<Ribbon pos={{ x: middleModal - 128, y: 65 }} scale={1} color={{ front: '#a1871f', back: '#a1871f' }} />
 								<G originX={middleModal} originY={100} rotation={-20}>
 									<Crown pos={{ x: middleModal - 28, y: 0 }} scale={0.15} gradientColor={{ from: '#c5ae60', to: '#ffe17d' }} />
 								</G>
 								<SvgImage
-									x={middleModal - 50}
-									y={35}
-									width={100}
-									height={100}
-									preserveAspectRatio='xMidYMid slice'
-									href={userInTop?.profile_image
-										? { uri: 'data:image/webp;base64,' + userInTop.profile_image }
-										: Gato}
+									x={middleModal - 50} y={35} width={100} height={100}
+									preserveAspectRatio='xMidYMid slice' clipPath="url(#winnerAvatarClip)"
+									href={userInTop?.profile_image ? { uri: 'data:image/webp;base64,' + userInTop.profile_image } : Gato}
 								/>
 							</Svg>
 							<View style={{ borderBottomColor: isDarkMode ? '#615e31' : '#e3dbbc', borderBottomWidth: 2, width: '70%' }}>

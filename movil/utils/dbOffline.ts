@@ -481,6 +481,47 @@ const CUSTOM_SUBTOPIC_SELECT = `
    INNER JOIN edu_knowledge_areas ka ON d.id_knowledge_area = ka.id
 `;
 
+const loadLocalAllBoards = async (): Promise<BoardType[]> => {
+   await InitOfflineDb();
+   try {
+      const db = await SQLite.openDatabaseAsync(DB_NAME);
+      const rows = await db.getAllAsync<any>(
+         `SELECT b.id, b.board_name, b.board_description, b.id_background, b.width, b.height, 
+                 bb.rect_width, bb.rect_height, bb.path1, bb.path2, bb.color_rect, bb.color_path1, bb.color_path2
+          FROM boards b
+          INNER JOIN board_backgrounds bb ON b.id_background = bb.id
+          ORDER BY b.id`
+      );
+      await db.closeAsync();
+      return rows.map(r => ({
+         id: Number(r.id),
+         board_name: r.board_name,
+         board_description: r.board_description ?? '',
+         id_background: Number(r.id_background),
+         background_name: r.background_name ?? '',
+         width: Number(r.width),
+         height: Number(r.height),
+         rect_width: Number(r.rect_width),
+         rect_height: Number(r.rect_height),
+         path1: r.path1,
+         path2: r.path2,
+         color_rect: r.color_rect,
+         color_path1: r.color_path1,
+         color_path2: r.color_path2,
+         sin_efecto: 0,
+         positivas: 0,
+         negativas: 0,
+         informativas: 0,
+         preguntas: 0,
+         especiales: 0,
+      }));
+   } catch (error: any) {
+      console.log('loadLocalAllBoards:', error.message);
+      Toast.show({ type: 'error', text1: 'Error (load local all boards)', text2: error.message });
+      return [];
+   }
+}
+
 const loadLocalCustomSubtopicById = async (idsubtopic: number): Promise<CustomSubtopicType | null> => {
    await InitOfflineDb();
    try {
@@ -545,4 +586,4 @@ const loadLocalInfoAndQuestions = async (idsubtopic: number): Promise<EduInfoQue
    }
 }
 
-export { DbCreateTables, DbDropTables, DbSeedOffline, InitOfflineDb, loadLocalDices, loadLocalTileTypes, loadLocalBoard, loadLocalTiles, loadLocalShortcuts, loadLocalCustomSubtopicById, loadLocalCustomSubtopics, loadLocalInfoAndQuestions };
+export { DbCreateTables, DbDropTables, DbSeedOffline, InitOfflineDb, loadLocalDices, loadLocalTileTypes, loadLocalBoard, loadLocalTiles, loadLocalShortcuts, loadLocalAllBoards, loadLocalCustomSubtopicById, loadLocalCustomSubtopics, loadLocalInfoAndQuestions };

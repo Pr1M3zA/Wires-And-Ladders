@@ -8,35 +8,23 @@ interface SubtopicCardProps {
 	fontScale?: number;
 	onPress?: () => void;
 	style?: any;
+	height?: number;
 }
 
-const CARD_HEIGHT = 150;
+const PREVIEW_HEIGHT = 150;
+const NAME_HEIGHT = 34;
+const TOTAL_HEIGHT = PREVIEW_HEIGHT + NAME_HEIGHT;
 
-const SubtopicCard: FC<SubtopicCardProps> = ({
-	item,
-	isDarkMode,
-	fontScale = 1,
-	onPress,
-	style,
-}) => {
+const SubtopicCard: FC<SubtopicCardProps> = ({ item, isDarkMode, fontScale = 1, onPress, style, height }) => {
+	const PREVIEW_HEIGHT = height || 150;
+	const TOTAL_HEIGHT = PREVIEW_HEIGHT + NAME_HEIGHT;
 	const [flipped, setFlipped] = useState(false);
 	const flipAnim = useRef(new Animated.Value(0)).current;
-
-	const frontInterpolate = flipAnim.interpolate({
-		inputRange: [0, 1],
-		outputRange: ['0deg', '180deg'],
-	});
-	const backInterpolate = flipAnim.interpolate({
-		inputRange: [0, 1],
-		outputRange: ['180deg', '360deg'],
-	});
+	const frontInterpolate = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+	const backInterpolate = flipAnim.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
 
 	const handleLongPress = () => {
-		Animated.timing(flipAnim, {
-			toValue: flipped ? 0 : 1,
-			duration: 500,
-			useNativeDriver: true,
-		}).start();
+		Animated.timing(flipAnim, { toValue: flipped ? 0 : 1, duration: 500, useNativeDriver: true, }).start();
 		setFlipped((f) => !f);
 	};
 
@@ -45,103 +33,43 @@ const SubtopicCard: FC<SubtopicCardProps> = ({
 	const bodyBg = isDarkMode ? '#1F3344' : 'white';
 	const subtopicColor = isDarkMode ? 'white' : '#365C80';
 	const detailColor = isDarkMode ? '#BFDEF7' : '#365C80';
-	const footerColor = isDarkMode ? '#BFDEF7' : '#578BB6';
 
 	const renderHeader = () => (
 		<View style={[styles.topicHeader, { backgroundColor: cardColor }]}>
+			<Text numberOfLines={1} style={[styles.topicText, { fontSize: 12 * fontScale }]}>{item.topic}</Text>
+		</View>
+	);
+
+	const renderNameContainer = () => (
+		<View style={[styles.nameContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white', borderTopColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]}>
 			<Text
 				numberOfLines={1}
-				style={[styles.topicText, { fontSize: 12 * fontScale }]}
+				style={[styles.nameText, { color: isDarkMode ? '#BFDEF7' : '#365C80' }]}
 			>
-				{item.topic}
+				{item.subtopic}
 			</Text>
 		</View>
 	);
 
-	const renderFooter = () => (
-		<Text
-			style={[
-				styles.footerText,
-				{ color: footerColor, fontSize: 11 * fontScale },
-			]}
-		>
-			Creado por: {item.creator_username}
-		</Text>
-	);
-
 	return (
-		<TouchableOpacity
-			onPress={onPress}
-			onLongPress={handleLongPress}
-			delayLongPress={350}
-			activeOpacity={0.9}
-		>
-			<View
-				style={[
-					styles.card,
-					{
-						width: '100%',
-						height: CARD_HEIGHT,
-						backgroundColor: cardBg,
-						borderColor: cardColor,
-					},
-					style,
-				]}
-			>
-				<Animated.View
-					style={[
-						styles.face,
-						{
-							transform: [
-								{ perspective: 1000 },
-								{ rotateY: frontInterpolate },
-							],
-						},
-					]}
-				>
+		<TouchableOpacity onPress={onPress} onLongPress={handleLongPress} delayLongPress={350} activeOpacity={0.9}>
+			<View style={[styles.card, { width: '100%', height: TOTAL_HEIGHT, backgroundColor: cardBg, borderColor: cardColor, }, style,]}>
+				<Animated.View style={[styles.face, { transform: [{ perspective: 1000 }, { rotateY: frontInterpolate }], },]}>
 					{renderHeader()}
-					<View style={[styles.body, { backgroundColor: bodyBg }]}>
-						<Text
-							style={[
-								styles.subtopicText,
-								{ color: subtopicColor, fontSize: 16 * fontScale },
-							]}
-							numberOfLines={3}
-						>
-							{item.subtopic}
-						</Text>
+					<View style={[styles.previewContainer, { backgroundColor: bodyBg, height: PREVIEW_HEIGHT - 30 }]}>
+						<Text style={[styles.subtopicText, { color: subtopicColor, fontSize: 16 * fontScale }]} numberOfLines={3}>{item.subtopic}</Text>
 					</View>
-					{renderFooter()}
+					{renderNameContainer()}
 				</Animated.View>
 
-				<Animated.View
-					style={[
-						styles.face,
-						{
-							transform: [
-								{ perspective: 1000 },
-								{ rotateY: backInterpolate },
-							],
-						},
-					]}
-				>
+				<Animated.View style={[styles.face, { transform: [{ perspective: 1000 }, { rotateY: backInterpolate }], },]}>
 					{renderHeader()}
-					<ScrollView
-						style={{ flex: 1 }}
-						contentContainerStyle={[
-							styles.bodyContent,
-							{ backgroundColor: bodyBg },
-						]}
-					>
-						<Text
-							style={[
-								styles.detailText,
-								{ color: detailColor, fontSize: 13 * fontScale },
-							]}
-						>
+					<ScrollView style={[styles.previewContainer, { height: PREVIEW_HEIGHT - 30 }]} contentContainerStyle={[styles.scrollContent, { backgroundColor: bodyBg }]}>
+						<Text style={[styles.detailText, { color: detailColor, fontSize: 13 * fontScale }]}>
 							{item.subtopic_detail || 'Sin detalle disponible'}
 						</Text>
 					</ScrollView>
+					{renderNameContainer()}
 				</Animated.View>
 			</View>
 		</TouchableOpacity>
@@ -178,15 +106,26 @@ const styles = StyleSheet.create({
 		color: 'white',
 		fontWeight: '600',
 	},
-	body: {
-		flex: 1,
-		justifyContent: 'center',
+	previewContainer: {
 		padding: 10,
 	},
-	bodyContent: {
+	scrollContent: {
 		flexGrow: 1,
 		justifyContent: 'center',
 		padding: 10,
+	},
+	nameContainer: {
+		height: NAME_HEIGHT,
+		paddingVertical: 8,
+		paddingHorizontal: 10,
+		alignItems: 'center',
+		justifyContent: 'center',
+		borderTopWidth: 1,
+	},
+	nameText: {
+		fontSize: 12,
+		fontFamily: 'Manrope_600SemiBold',
+		textAlign: 'center',
 	},
 	subtopicText: {
 		fontWeight: '700',
@@ -195,11 +134,6 @@ const styles = StyleSheet.create({
 	detailText: {
 		textAlign: 'left',
 		lineHeight: 18,
-	},
-	footerText: {
-		paddingHorizontal: 10,
-		paddingBottom: 6,
-		fontStyle: 'italic',
 	},
 });
 

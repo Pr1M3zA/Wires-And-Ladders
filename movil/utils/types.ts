@@ -1,6 +1,9 @@
 type BoardType = {
 	id: number,
 	board_name: string,
+	board_description: string,
+	id_background: number,
+	background_name: string,
 	width: number,
 	height: number,
 	rect_width: number,
@@ -10,7 +13,12 @@ type BoardType = {
 	color_rect: string,
 	color_path1: string,
 	color_path2: string,
-	//education: number,
+	sin_efecto: number,
+	positivas: number,
+	negativas: number,
+	informativas: number,
+	preguntas: number,
+	especiales: number
 }
 
 type DiceType = {
