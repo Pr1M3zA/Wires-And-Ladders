@@ -246,16 +246,16 @@ export default function BoardGame() {
 		if (!isTakingShortCutRef.current && tileEffect === 'Positivo') {  // Le daremos 1 punto al jugador
 			bonus.seekTo(0);
 			bonus.play();
-			updatedPlayer.pointsAccumulated += 2;
-			Toast.show({ type: 'success', text1: '¡Efecto positivo! 😺', text2: 'Obtuviste 2 puntos por llegar a esta casilla' });
-			newLog += ', +2 pts';
+			updatedPlayer.pointsAccumulated += 3;
+			Toast.show({ type: 'success', text1: '¡Efecto positivo! 😺', text2: 'Obtuviste 3 puntos por llegar a esta casilla' });
+			newLog += ', +3 pts';
 		}
 		if (!isTakingShortCutRef.current && tileEffect === 'Negativo') {  // Le quitaremos 1 punto al jugador
 			bad.seekTo(0);
 			bad.play();
-			updatedPlayer.pointsAccumulated -= 2;
-			Toast.show({ type: 'error', text1: 'Efecto negativo... 😿', text2: 'Perdiste 2 puntos por llegar a esta casilla' });
-			newLog += ', -2 pts';
+			updatedPlayer.pointsAccumulated -= 3;
+			Toast.show({ type: 'error', text1: 'Efecto negativo... 😿', text2: 'Perdiste 3 puntos por llegar a esta casilla' });
+			newLog += ', -3 pts';
 		}
 		// Actualizar la posición final y verificar ganador
 		isTakingShortCutRef.current = false;
@@ -341,8 +341,8 @@ export default function BoardGame() {
 			const playerFinishGameIndex = allPlayersArray.findIndex(p => p.dbUserId === playerFinishGame);
 			const profileFinishGameIdx = playingUsers.findIndex(p => p.id === playerFinishGame)
 			if (playerFinishGameIndex !== -1) {
-				allPlayersArray[playerFinishGameIndex].pointsAccumulated += 25;
-				Toast.show({ type: 'info', text1: '¡Bono de llegada a la meta!', text2: `${playingUsers[profileFinishGameIdx].username} gana 25 puntos extra.` });
+				allPlayersArray[playerFinishGameIndex].pointsAccumulated += 15;
+				Toast.show({ type: 'info', text1: '¡Bono de llegada a la meta!', text2: `${playingUsers[profileFinishGameIdx].username} gana 15 puntos extra.` });
 			}
 			const arrayOrdenado = [...allPlayersArray].sort((a, b) => b.pointsAccumulated - a.pointsAccumulated);
 			const playerWithMostPoints = arrayOrdenado[0];
