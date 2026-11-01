@@ -104,7 +104,7 @@ routeUser.post('/login', async (req, res) => {
       const { identifier, password } = req.body
       db = await connect();
       let idUser = 0;
-      const query = `SELECT id, password FROM users WHERE username ='${identifier}' OR email='${identifier}'`;
+      const query = `SELECT id, password FROM users WHERE (username ='${identifier}' OR email='${identifier}') AND activo=1`;
       const [rows] = await db.execute(query);
       if (rows.length > 0) {
          if (bcrypt.compareSync(password, rows[0].password))
@@ -131,7 +131,7 @@ routeUser.post('/send-reset-code', async (req, res) => {
       const { identifier } = req.body
       db = await connect();
       let idUser = 0, email = '';
-      const query = `SELECT id, first_name, last_name, email FROM users WHERE username ='${identifier}' OR email='${identifier}'`;
+      const query = `SELECT id, first_name, last_name, email FROM users WHERE (username ='${identifier}' OR email='${identifier}') AND activo=1`;
       const [rows] = await db.execute(query);
       if (rows.length > 0) {
          idUser = rows[0].id
@@ -205,7 +205,7 @@ routeUser.post('/verify-reset-code', async (req, res) => {
       const { identifier, code } = req.body
       db = await connect();
       let idUser = 0;
-      const query = `SELECT id, IFNULL(code_pass_recover, 'nocode') code_pass_recover FROM users WHERE username ='${identifier}' OR email='${identifier}'`;
+      const query = `SELECT id, IFNULL(code_pass_recover, 'nocode') code_pass_recover FROM users WHERE (username ='${identifier}' OR email='${identifier}') AND activo=1`;
       const [rows] = await db.execute(query);
       if (rows.length > 0) {
          if (!bcrypt.compareSync(code, rows[0].code_pass_recover))
