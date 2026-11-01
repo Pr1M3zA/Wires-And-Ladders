@@ -243,19 +243,19 @@ export default function BoardGame() {
 		}
 
 		let newLog = currentActionLog;
-		if (!isTakingShortCutRef.current && tileEffect === 'Positivo') {  // Le daremos 1 punto al jugador
+		if (!isTakingShortCutRef.current && tileEffect === 'Positivo') {  // Le daremos puntos al jugador
 			bonus.seekTo(0);
 			bonus.play();
 			updatedPlayer.pointsAccumulated += 3;
 			Toast.show({ type: 'success', text1: '¡Efecto positivo! 😺', text2: 'Obtuviste 3 puntos por llegar a esta casilla' });
-			newLog += ', +3 pts';
+			newLog += ', +2 pts';
 		}
-		if (!isTakingShortCutRef.current && tileEffect === 'Negativo') {  // Le quitaremos 1 punto al jugador
+		if (!isTakingShortCutRef.current && tileEffect === 'Negativo') {  // Le quitaremos puntos al jugador
 			bad.seekTo(0);
 			bad.play();
 			updatedPlayer.pointsAccumulated -= 3;
 			Toast.show({ type: 'error', text1: 'Efecto negativo... 😿', text2: 'Perdiste 3 puntos por llegar a esta casilla' });
-			newLog += ', -3 pts';
+			newLog += ', -2 pts';
 		}
 		// Actualizar la posición final y verificar ganador
 		isTakingShortCutRef.current = false;

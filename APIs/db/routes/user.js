@@ -82,6 +82,22 @@ routeUser.put('/user', checkToken, async (req, res) => {
    }
 });
 
+
+routeUser.delete('/user', checkToken, async (req, res) => {
+   let db;
+   try {
+      db = await connect();
+      const idUser = req.idUser;
+      let query = `UPDATE users SET activo=0 WHERE id=${idUser}`
+      const [result] = await db.execute(query);
+      res.status(200).json(result)
+   } catch (err) {
+      return res.status(500).json({ message: db ? err.sqlMessage : "DB connection issue" })
+   } finally {
+      if (db) await db.end();
+   }
+});
+
 routeUser.post('/login', async (req, res) => {
    let db;
    try {

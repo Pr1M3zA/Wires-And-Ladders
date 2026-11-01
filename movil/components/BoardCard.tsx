@@ -14,7 +14,7 @@ interface BoardCardProps {
 	tiles: TileType[];
 	shortcuts: ShortCutType[];
 	isDarkMode: boolean;
-	isCurrentBoard: boolean;
+	isCurrentBoard?: boolean;
 	onPress?: () => void;
 	height?: number;
 	fontScale?: number;
@@ -40,7 +40,7 @@ const BoardCard: FC<BoardCardProps> = ({
 	tiles = [],
 	shortcuts = [],
 	isDarkMode,
-	isCurrentBoard,
+	isCurrentBoard = false,
 	onPress,
 	height,
 	fontScale = 1,
@@ -304,7 +304,7 @@ const BoardCard: FC<BoardCardProps> = ({
 
 const styles = StyleSheet.create({
 	card: {
-		borderWidth: 2,
+		borderWidth: 1,
 		borderRadius: 12,
 		overflow: 'hidden',
 		shadowColor: '#000',

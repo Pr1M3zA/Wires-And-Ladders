@@ -324,11 +324,7 @@ export default function GamersGroup() {
 				<View style={styles.playersHeader}>
 					<Text style={[styles.usersTitle, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale }]}>Jugadores ({playingUsers.length}/6):</Text>
 					{canAddBot && (
-						<TouchableOpacity
-							style={styles.addBotIconBtn}
-							onPress={handleAddBot}
-							accessibilityLabel='Agregar CatBot'
-						>
+						<TouchableOpacity style={styles.addBotIconBtn} onPress={handleAddBot} accessibilityLabel='Agregar CatBot' >
 							<Text style={[styles.addBotPlus, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 18 * fontScale }]}>+</Text>
 							<MCI name='robot-happy-outline' size={20 * fontScale} color={isDarkMode ? '#578BB6' : '#365C80'} />
 						</TouchableOpacity>
@@ -377,7 +373,7 @@ export default function GamersGroup() {
 						shortcuts={shortcuts}
 						isDarkMode={isDarkMode}
 						fontScale={fontScale}
-						isCurrentBoard={true}
+						isCurrentBoard={false}
 						onPress={isCreator ? () => setIsBoardModalVisible(true) : undefined}
 						height={cardHeight}
 					/>

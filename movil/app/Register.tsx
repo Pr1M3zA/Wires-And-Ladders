@@ -3,7 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImgPicker from 'expo-image-picker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, TextInput, TouchableOpacity, View, Platform, Switch } from 'react-native';
+import { ActivityIndicator, Image, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View, Platform, Switch } from 'react-native';
 import BottomDesign from '@/components/BottomDesign';
 import Toast from 'react-native-toast-message';
 import { useContextProvider } from '@/utils/ContextProvider'
@@ -18,7 +18,7 @@ export default function Register() {
 	const params = useLocalSearchParams<{ mode: string }>();
 	const editMode = params.mode === 'edit';
 
-	const { apiURL, token, userRow, setUserRow, isDarkMode, fontScale } = useContextProvider();
+	const { apiURL, token, setToken, userRow, setUserRow, isDarkMode, fontScale } = useContextProvider();
 	const [userName, setUserName] = useState('');
 	const [firstName, setFirstName] = useState('');
 	const [lastName, setLastName] = useState('');
@@ -37,6 +37,8 @@ export default function Register() {
 	const [errPassword, setErrPassword] = useState('');
 	const [errConfirmPassword, setErrConfirmPassword] = useState('');
 	const [activeButton, setActiveButton] = useState(true);
+	const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+	const [confirmUsername, setConfirmUsername] = useState('');
 
 	useEffect(() => {
 		if (editMode) {  // Leer datos actuales del usuario
@@ -175,6 +177,43 @@ export default function Register() {
 			});
 		setLoading(false);
 	}
+
+	const removeUser = async () => {
+		const InitCallHour = new Date();
+		setLoading(true);
+		await fetch(apiURL + '/users/user', {
+			method: 'DELETE',
+			headers: {
+				'Content-Type': 'application/json',
+				'authorization': token
+			},
+		})
+			.then(response => response.json())
+			.then(data => {
+				const EndCallHour = new Date();
+				if (data.hasOwnProperty('message'))
+					Toast.show({ type: 'error', text1: 'Error', text2: data.message, position: 'top', visibilityTime: 3000 });
+				if (data.hasOwnProperty('affectedRows') && data.affectedRows == 1) {
+					setToken('');
+					setUserRow({ id: 0, username: 'guest', first_name: 'Invitado', last_name: '', email: '', profile_image: null, is_admin: false, id_board: 1, id_dice: 1, id_subtopic: 1 });
+					if (userRow.is_admin)
+						Toast.show({ type: 'info', text1: 'Eliminar usuario', text2: `Respuesta en ${EndCallHour.getTime() - InitCallHour.getTime()} ms`, position: "bottom", visibilityTime: 5000 });
+					else
+						Toast.show({ type: 'success', text1: 'Correcto', text2: `Usuario eliminado`, position: 'top', visibilityTime: 3000 });
+					setShowDeactivateModal(false);
+					setConfirmUsername('');
+					router.replace('/');
+				}
+			})
+			.catch(error => {
+				console.log(error)
+				Toast.show({ type: 'error', text1: 'Error', text2: String(error), position: 'top', visibilityTime: 3000 });
+			});
+		setLoading(false);
+	}
+
+
+
 	const validateUserName = () => {
 		setUserName(prev => prev.trim())
 		if (userName.trim().length === 0)
@@ -314,7 +353,11 @@ export default function Register() {
 						{image && <Image source={{ uri: image }} style={[styles.profileImage, { borderColor: isDarkMode ? '#A7CFEB' : '#294270' }]} />}
 					</TouchableOpacity>
 				</View>
-				<View style={styles.emptyContainer}></View>
+				<View style={styles.emptyContainer}>
+					<TouchableOpacity onPress={() => setShowDeactivateModal(true)} style={{ alignSelf: 'center', backgroundColor: '#B15151', borderRadius: 30, padding: 5 }}>
+						<Icon name='user-x' size={18} color={'white'} />
+					</TouchableOpacity>
+				</View>
 			</View>
 			<View style={[styles.fieldsContainer, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
 				{/* Username */}
@@ -399,6 +442,65 @@ export default function Register() {
 
 			<BottomDesign allowRanking={false} />
 
+			{/* Modal de confirmación de desactivación */}
+			<Modal
+				visible={showDeactivateModal}
+				transparent={true}
+				animationType="fade"
+				onRequestClose={() => { setShowDeactivateModal(false); setConfirmUsername(''); }}
+			>
+				<View style={modalStyles.overlay}>
+					<View style={[modalStyles.container, { backgroundColor: isDarkMode ? '#1F3344' : 'white' }]}>
+						{/* Banner ¡ESPERA! */}
+						<View style={modalStyles.banner}>
+							<Text style={[modalStyles.bannerText, { fontSize: 22 * fontScale }]}>¡ESPERA!</Text>
+						</View>
+
+						{/* Texto de advertencia */}
+						<Text style={[modalStyles.warningText, { color: isDarkMode ? '#A7CFEB' : '#333', fontSize: 13 * fontScale }]}>
+							Estás a punto de <Text style={{ fontFamily: 'Manrope_800ExtraBold', color: '#B05151' }}>desactivar</Text> tu cuenta. Esta acción es irreversible y eliminará tu acceso a la aplicación, así como la información asociada a tu cuenta.
+						</Text>
+
+						<Text style={[modalStyles.warningText, { color: isDarkMode ? '#A7CFEB' : '#333', fontSize: 13 * fontScale }]}>
+							Si estás seguro de continuar, escribe tu nombre de usuario para confirmar la desactivación.
+						</Text>
+
+						{/* Input para confirmar username */}
+						<TextInput
+							placeholder={userRow.username}
+							placeholderTextColor={'#aaa'}
+							value={confirmUsername}
+							onChangeText={setConfirmUsername}
+							style={[modalStyles.input, {
+								borderColor: isDarkMode ? '#A7CFEB' : '#294270',
+								color: isDarkMode ? '#A7CFEB' : '#365C80',
+								fontSize: 13 * fontScale,
+							}]}
+						/>
+
+						{/* Botón Desactivar cuenta */}
+						{loading ? (
+							<ActivityIndicator size='large' color="#B05151" style={{ marginTop: 15 }} />
+						) : (
+							<TouchableOpacity
+								style={[modalStyles.deactivateButton, confirmUsername !== userRow.username && modalStyles.deactivateButtonDisabled]}
+								onPress={removeUser}
+								disabled={confirmUsername !== userRow.username}
+							>
+								<Text style={[modalStyles.deactivateButtonText, { fontSize: 16 * fontScale }]}>Desactivar cuenta</Text>
+							</TouchableOpacity>
+						)}
+
+						{/* Botón Cancelar */}
+						<TouchableOpacity
+							style={modalStyles.cancelButton}
+							onPress={() => { setShowDeactivateModal(false); setConfirmUsername(''); }}
+						>
+							<Text style={[modalStyles.cancelText, { color: isDarkMode ? '#A7CFEB' : '#6599C3', fontSize: 13 * fontScale }]}>Cancelar</Text>
+						</TouchableOpacity>
+					</View>
+				</View>
+			</Modal>
 		</View>
 	)
 }
@@ -479,3 +581,79 @@ const styles = StyleSheet.create({
 })
 
 
+
+
+const modalStyles = StyleSheet.create({
+	overlay: {
+		flex: 1,
+		backgroundColor: 'rgba(0, 0, 0, 0.45)',
+		justifyContent: 'center',
+		alignItems: 'center',
+		paddingHorizontal: 20,
+	},
+	container: {
+		width: '92%',
+		maxWidth: 400,
+		borderRadius: 12,
+		paddingHorizontal: 25,
+		paddingVertical: 25,
+		alignItems: 'center',
+		elevation: 8,
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.25,
+		shadowRadius: 8,
+	},
+	banner: {
+		backgroundColor: '#B05151',
+		borderRadius: 4,
+		paddingVertical: 10,
+		width: '100%',
+		alignItems: 'center',
+		marginBottom: 20,
+	},
+	bannerText: {
+		color: 'white',
+		fontFamily: 'Manrope_800ExtraBold',
+		letterSpacing: 0.5,
+	},
+	warningText: {
+		fontFamily: 'Manrope_600SemiBold',
+		textAlign: 'left',
+		alignSelf: 'stretch',
+		marginBottom: 16,
+		lineHeight: 18,
+	},
+	input: {
+		borderWidth: 1.5,
+		borderRadius: 10,
+		paddingHorizontal: 14,
+		paddingVertical: 10,
+		width: '100%',
+		fontFamily: 'Manrope_600SemiBold',
+		marginBottom: 24,
+	},
+	deactivateButton: {
+		backgroundColor: '#E05353',
+		borderRadius: 14,
+		paddingVertical: 12,
+		paddingHorizontal: 36,
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	deactivateButtonDisabled: {
+		opacity: 0.45,
+	},
+	deactivateButtonText: {
+		color: 'white',
+		fontFamily: 'Manrope_800ExtraBold',
+	},
+	cancelButton: {
+		marginTop: 14,
+		paddingVertical: 6,
+		paddingHorizontal: 16,
+	},
+	cancelText: {
+		fontFamily: 'Manrope_600SemiBold',
+	},
+});
