@@ -1,0 +1,1 @@
+node --input-type=module -e "import * as webpush from 'web-push'; console.log(JSON.stringify(webpush.generateVAPIDKeys(), null, 2));"

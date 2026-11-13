@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { connect } from "../db.js";
 import { checkToken } from "./gameboard.js";
+import { sendPushToUser } from "../services/pushService.js";
 
 const routeGroups = Router();
 
@@ -308,7 +309,10 @@ routeGroups.post("/:id/participants", checkToken, async (req, res) => {
       transactionStarted = true;
 
       const [groups] = await db.execute(
-         "SELECT id FROM edu_students_groups WHERE id = ? AND id_user_owner = ? FOR UPDATE",
+         `SELECT g.id, g.title, u.first_name, u.last_name, u.username
+          FROM edu_students_groups g
+          INNER JOIN users u ON u.id = g.id_user_owner
+          WHERE g.id = ? AND g.id_user_owner = ? FOR UPDATE`,
          [groupId, req.idUser]
       );
       if (groups.length === 0) {
@@ -340,6 +344,21 @@ routeGroups.post("/:id/participants", checkToken, async (req, res) => {
       );
       await db.commit();
       transactionStarted = false;
+
+      // Disparador de dominio: el integrante recibe el aviso después de confirmar el alta.
+      const owner = groups[0];
+      const ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(' ').trim()
+         || owner.username
+         || 'Un docente';
+      await sendPushToUser(participantId, {
+         title: 'Te agregaron a un grupo',
+         body: `${ownerName} te agregó al grupo «${owner.title}».`,
+         url: './editar/grupos',
+         tag: `wl-group-${groupId}`,
+      }, { ttl: 3600 }).catch((error) => {
+         console.warn('[push] No se pudo notificar el alta al grupo:', error.message);
+      });
+
       res.status(201).json({ alreadyMember: false, message: "Integrante agregado correctamente" });
    } catch (err) {
       if (db && transactionStarted) {
