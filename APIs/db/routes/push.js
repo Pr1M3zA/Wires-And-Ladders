@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { checkToken } from './gameboard.js';
  import * as webpush from 'web-push'
+ import { connect } from "../db.js";
 
 const routePush = Router();
 
