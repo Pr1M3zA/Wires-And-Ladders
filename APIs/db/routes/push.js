@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { checkToken } from './gameboard.js';
+ import * as webpush from 'web-push'
 
 const routePush = Router();
 
@@ -126,7 +127,7 @@ async function deletePushSubscription(userId, endpoint) {
 }
 
 /** Best-effort delivery: one failing push service must not undo the domain action. */
-async function sendPushToUser(userId, message, { ttl = 3600 } = {}) {
+export async function sendPushToUser(userId, message, { ttl = 3600 } = {}) {
   const result = { sent: 0, removed: 0, failed: 0 };
   if (!vapidConfigured) return { ...result, failed: 1 };
 

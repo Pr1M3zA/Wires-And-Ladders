@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { connect } from "../db.js";
 import { checkToken } from "./gameboard.js";
-import { sendPushToUser } from "../services/pushService.js";
+import { sendPushToUser } from "./push.js";
 
 const routeGroups = Router();
 
