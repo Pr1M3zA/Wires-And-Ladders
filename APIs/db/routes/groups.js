@@ -352,7 +352,7 @@ routeGroups.post("/:id/participants", checkToken, async (req, res) => {
          || 'Un docente';
       await sendPushToUser(participantId, {
          title: 'Te agregaron a un grupo',
-         body: `${ownerName} te agregó al grupo «${owner.title}».`,
+         body: `${ownerName} te agregó al grupo ${owner.title}.`,
          url: './editar/grupos',
          tag: `wl-group-${groupId}`,
       }, { ttl: 3600 }).catch((error) => {
