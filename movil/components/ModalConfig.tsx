@@ -1,7 +1,6 @@
 import { FC, useState, useCallback } from 'react'
 import { View, Text, Modal, StyleSheet, TouchableOpacity, Dimensions, Switch } from 'react-native'
 import Animated from 'react-native-reanimated';
-import Svg from 'react-native-svg';
 import Icon from '@expo/vector-icons/Feather';
 import Slider from '@react-native-community/slider';
 import Dice from '@/components/Dice';
@@ -107,17 +106,15 @@ const ModalConfig: FC<modalCfgProps> = (props) => {
 							</View>
 							<View style={{ flex: 4 }}>
 								{props.dices.length > 0 && props.dices[idxDice] && (
-									<Animated.View>
-										<Svg width="100%" height={105}>
-											<Dice
-												initialValue={1}
-												onSpinComplete={handleDiceSpinComplete}
-												position={{ x: ((screenWidth * 0.92 - 40) * 0.4 * .5) - 39, y: 10 }}
-												scale={props.dices[idxDice].scale} lineWidth={props.dices[idxDice].border_width}
-												colors={{ faceUpColor: props.dices[idxDice].color_faceup, faceLeftColor: props.dices[idxDice].color_faceleft, faceRightColor: props.dices[idxDice].color_faceright, line: props.dices[idxDice].color_border, dots: props.dices[idxDice].color_dots }}
-												isAnimated={true}
-											/>
-										</Svg>
+									<Animated.View style={{ width: '100%', height: 105 }}>
+										<Dice
+											initialValue={1}
+											onSpinComplete={handleDiceSpinComplete}
+											position={{ x: ((screenWidth * 0.92 - 40) * 0.4 * .5) - 39, y: 10 }}
+											scale={props.dices[idxDice].scale} lineWidth={props.dices[idxDice].border_width}
+											colors={{ faceUpColor: props.dices[idxDice].color_faceup, faceLeftColor: props.dices[idxDice].color_faceleft, faceRightColor: props.dices[idxDice].color_faceright, line: props.dices[idxDice].color_border, dots: props.dices[idxDice].color_dots }}
+											isAnimated={true}
+										/>
 									</Animated.View>
 								)}
 								<Text style={[styles.valueLabel, { color: isDarkMode ? '#578BB6' : '#365C80', fontSize: 10 * fontScale, textAlign: 'center' }]}>

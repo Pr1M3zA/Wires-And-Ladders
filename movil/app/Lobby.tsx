@@ -23,7 +23,7 @@ export default function Lobby() {
 	//let user = { id: 0, username: 'guest', first_name: 'Invitado', last_name: '', email: '', profile_image: null, isAdmin: false }
 	const { token, setToken, apiURL, setIdUser, userRow, setUserRow, setDefDice, setDefBoard, isApiConnected, isDarkMode, fontScale } = useContextProvider();
 	//const [userRow, setUserRow] = useState(user);
-	const [image, setImage] = useState(Platform.OS === 'web' ? Gato : Image.resolveAssetSource(Gato).uri);
+	const [image, setImage] = useState(Platform.OS === 'web' ? Gato : Image.resolveAssetSource(Gato)?.uri ?? '');
 	const [gameCode, setGameCode] = useState('');
 	const [loading, setLoading] = useState(false);
 	const guestMode = userRow.id < 1;

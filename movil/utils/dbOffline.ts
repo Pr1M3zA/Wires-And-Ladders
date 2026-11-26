@@ -359,11 +359,35 @@ const loadLocalBoard = async (idboard: number): Promise<BoardType | null> => {
    try {
       const db = await SQLite.openDatabaseAsync(DB_NAME);
       const rows = await db.getAllAsync<any>(
-         `SELECT b.id, b.board_name, b.width, b.height, bb.rect_width, bb.rect_height, bb.path1, bb.path2, bb.color_rect, bb.color_path1, bb.color_path2
-          FROM boards b
-          INNER JOIN board_backgrounds bb ON b.id_background = bb.id
-          WHERE b.id = ?
-          LIMIT 1`,
+         `SELECT b.id,
+                 b.board_name,
+                 b.board_description,
+                 b.id_background,
+                 bb.background_name,
+                 bb.rect_width,
+                 bb.rect_height,
+                 bb.path1,
+                 bb.path2,
+                 bb.color_rect,
+                 bb.color_path1,
+                 bb.color_path2,
+                 COALESCE(MAX(t.pos_x + t.radius), 0) AS width,
+                 COALESCE(MAX(t.pos_y + t.radius), 0) AS height,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 1 THEN 1 ELSE 0 END), 0) AS sin_efecto,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 2 THEN 1 ELSE 0 END), 0) AS positivas,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 3 THEN 1 ELSE 0 END), 0) AS negativas,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 4 THEN 1 ELSE 0 END), 0) AS informativas,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 5 THEN 1 ELSE 0 END), 0) AS preguntas,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 6 THEN 1 ELSE 0 END), 0) AS especiales
+           FROM boards b
+           INNER JOIN board_backgrounds bb ON b.id_background = bb.id
+           INNER JOIN tiles t ON t.id_board = b.id
+           INNER JOIN tile_types tt ON tt.id = t.tile_type
+           WHERE b.id = ?
+           GROUP BY b.id, b.board_name, b.board_description, b.id_background,
+                    bb.background_name, bb.rect_width, bb.rect_height, bb.path1,
+                    bb.path2, bb.color_rect, bb.color_path1, bb.color_path2
+           LIMIT 1`,
          [idboard]
       );
       await db.closeAsync();
@@ -372,15 +396,24 @@ const loadLocalBoard = async (idboard: number): Promise<BoardType | null> => {
       return {
          id: Number(r.id),
          board_name: r.board_name,
+         board_description: r.board_description ?? '',
+         id_background: Number(r.id_background),
+         background_name: r.background_name ?? '',
          width: Number(r.width),
          height: Number(r.height),
          rect_width: Number(r.rect_width),
          rect_height: Number(r.rect_height),
-         path1: r.path1,
-         path2: r.path2,
-         color_rect: r.color_rect,
-         color_path1: r.color_path1,
-         color_path2: r.color_path2,
+         path1: r.path1 ?? '',
+         path2: r.path2 ?? '',
+         color_rect: r.color_rect ?? '',
+         color_path1: r.color_path1 ?? '',
+         color_path2: r.color_path2 ?? '',
+         sin_efecto: Number(r.sin_efecto),
+         positivas: Number(r.positivas),
+         negativas: Number(r.negativas),
+         informativas: Number(r.informativas),
+         preguntas: Number(r.preguntas),
+         especiales: Number(r.especiales),
       };
    } catch (error: any) {
       console.log('loadLocalBoard:', error.message);
@@ -486,11 +519,34 @@ const loadLocalAllBoards = async (): Promise<BoardType[]> => {
    try {
       const db = await SQLite.openDatabaseAsync(DB_NAME);
       const rows = await db.getAllAsync<any>(
-         `SELECT b.id, b.board_name, b.board_description, b.id_background, b.width, b.height, 
-                 bb.rect_width, bb.rect_height, bb.path1, bb.path2, bb.color_rect, bb.color_path1, bb.color_path2
-          FROM boards b
-          INNER JOIN board_backgrounds bb ON b.id_background = bb.id
-          ORDER BY b.id`
+         `SELECT b.id,
+                 b.board_name,
+                 b.board_description,
+                 b.id_background,
+                 bb.background_name,
+                 bb.rect_width,
+                 bb.rect_height,
+                 bb.path1,
+                 bb.path2,
+                 bb.color_rect,
+                 bb.color_path1,
+                 bb.color_path2,
+                 COALESCE(MAX(t.pos_x + t.radius), 0) AS width,
+                 COALESCE(MAX(t.pos_y + t.radius), 0) AS height,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 1 THEN 1 ELSE 0 END), 0) AS sin_efecto,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 2 THEN 1 ELSE 0 END), 0) AS positivas,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 3 THEN 1 ELSE 0 END), 0) AS negativas,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 4 THEN 1 ELSE 0 END), 0) AS informativas,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 5 THEN 1 ELSE 0 END), 0) AS preguntas,
+                 COALESCE(SUM(CASE WHEN tt.id_effect = 6 THEN 1 ELSE 0 END), 0) AS especiales
+           FROM boards b
+           INNER JOIN board_backgrounds bb ON b.id_background = bb.id
+           INNER JOIN tiles t ON t.id_board = b.id
+           INNER JOIN tile_types tt ON tt.id = t.tile_type
+           GROUP BY b.id, b.board_name, b.board_description, b.id_background,
+                    bb.background_name, bb.rect_width, bb.rect_height, bb.path1,
+                    bb.path2, bb.color_rect, bb.color_path1, bb.color_path2
+           ORDER BY b.id`
       );
       await db.closeAsync();
       return rows.map(r => ({
@@ -503,17 +559,17 @@ const loadLocalAllBoards = async (): Promise<BoardType[]> => {
          height: Number(r.height),
          rect_width: Number(r.rect_width),
          rect_height: Number(r.rect_height),
-         path1: r.path1,
-         path2: r.path2,
-         color_rect: r.color_rect,
-         color_path1: r.color_path1,
-         color_path2: r.color_path2,
-         sin_efecto: 0,
-         positivas: 0,
-         negativas: 0,
-         informativas: 0,
-         preguntas: 0,
-         especiales: 0,
+         path1: r.path1 ?? '',
+         path2: r.path2 ?? '',
+         color_rect: r.color_rect ?? '',
+         color_path1: r.color_path1 ?? '',
+         color_path2: r.color_path2 ?? '',
+         sin_efecto: Number(r.sin_efecto),
+         positivas: Number(r.positivas),
+         negativas: Number(r.negativas),
+         informativas: Number(r.informativas),
+         preguntas: Number(r.preguntas),
+         especiales: Number(r.especiales),
       }));
    } catch (error: any) {
       console.log('loadLocalAllBoards:', error.message);

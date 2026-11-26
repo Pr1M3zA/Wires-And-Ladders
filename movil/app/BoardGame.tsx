@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Dimensions, Platform, View, Text, StyleSheet, BackHandler, Alert, Image, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import { useContextProvider } from '@/utils/ContextProvider';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import Svg, { Path, G } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import BoardStatic from '@/components/BoardStatic';
@@ -20,12 +21,14 @@ import ModalEducation from '@/components/modalEducation';
 import ModalGameStats from '@/components/GameStatisticsModal';
 import ModalConfig from '@/components/ModalConfig';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import * as Haptics from 'expo-haptics';
 import { getHour } from '@/utils/utils';
 import { getBoardElements, getInfoAndQuestions } from '@/utils/fetchAndSet';
 import { loadLocalBoard, loadLocalTiles, loadLocalShortcuts, loadLocalInfoAndQuestions } from '@/utils/dbOffline';
 import type { EduInfoQuestionsType, DiceType, GameBoardParams, PlayerInfoFromLobby, PlayerGameState, GameOverallStats, BoardType, TileType, ShortCutType } from '@/utils/types';
 
 import musicSrc from '@/assets/sounds/game-music-loop-20.mp3';
+import countdownBeepSrc from '@/assets/sounds/countdown-beep.wav';
 import bonusSrc from '@/assets/sounds/game-bonus.mp3'
 import failSrc from '@/assets/sounds/cartoon-fail-trumpet.mp3'
 import funnySrc from '@/assets/sounds/funny-cartoon-sound.mp3'
@@ -35,6 +38,36 @@ import correctSrc from '@/assets/sounds/correct.mp3'
 import Loading from '@/components/Loading';
 
 const playerColors = gameItems.playerColors;
+const DICE_TURN_TIMEOUT_MS = 10000;
+const DICE_TURN_TIMEOUT_SECONDS = DICE_TURN_TIMEOUT_MS / 1000;
+const DICE_COUNTDOWN_DELAY_MS = 5000;
+const DICE_BEEP_DELAY_MS = 8000;
+
+type TurnTimeoutNotice = {
+	id: string;
+	playerName: string;
+};
+
+const getCurrentIndexAfterRemoval = (
+	currentPlayers: PlayerGameState[],
+	remainingPlayers: PlayerGameState[],
+	currentIndex: number,
+) => {
+	if (remainingPlayers.length === 0 || currentPlayers.length === 0) return 0;
+
+	const normalizedIndex = ((currentIndex % currentPlayers.length) + currentPlayers.length) % currentPlayers.length;
+	const activePlayerId = currentPlayers[normalizedIndex]?.dbUserId;
+	const preservedIndex = remainingPlayers.findIndex(player => player.dbUserId === activePlayerId);
+	if (preservedIndex !== -1) return preservedIndex;
+
+	for (let offset = 1; offset < currentPlayers.length; offset++) {
+		const candidate = currentPlayers[(normalizedIndex + offset) % currentPlayers.length];
+		const nextIndex = remainingPlayers.findIndex(player => player.dbUserId === candidate.dbUserId);
+		if (nextIndex !== -1) return nextIndex;
+	}
+
+	return 0;
+};
 
 
 
@@ -47,10 +80,20 @@ export default function BoardGame() {
 	const bad = useAudioPlayer(badSrc);
 	const cry = useAudioPlayer(crySrc);
 	const funny = useAudioPlayer(funnySrc);
+	const countdownBeep = useAudioPlayer(countdownBeepSrc);
 
 	// Constantes del juego
 	const router = useRouter();
 	const params = useLocalSearchParams<GameBoardParams>();
+	useFocusEffect(
+		useCallback(() => {
+			const keepAwakeTag = 'board-game';
+			void activateKeepAwakeAsync(keepAwakeTag).catch(() => undefined);
+			return () => {
+				void deactivateKeepAwake(keepAwakeTag).catch(() => undefined);
+			};
+		}, [])
+	);
 	const { token, apiURL, socket, idUser, dices, userRow, isApiConnected, isSocketConnected, isDarkMode, setIsDarkMode, fontScale, setFontScale, playingUsers } = useContextProvider();
 	const isHost = params.isCreator === '1' || (playingUsers.length > 0 && idUser === playingUsers[0]?.id);
 	const idBoard = parseInt(params.idBoard, 10);
@@ -67,10 +110,29 @@ export default function BoardGame() {
 	const canvas_height = !board ? 0 : board.height;
 	const [layoutBottom, setLayoutBottom] = useState({ x: 0, y: 0, width: 0, height: 0 });
 	const [gameAreaWidth, setGameAreaWidth] = useState(windowWidth || 320);
+	const [diceCountdown, setDiceCountdown] = useState<number | null>(null);
+	const diceTurnTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const diceCountdownRevealTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const diceCountdownBeepTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const diceCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const diceTurnTimerActiveRef = useRef(false);
+	const handleDiceTurnTimeoutRef = useRef<() => void>(() => {});
+	const lastTurnTimeoutToastIdRef = useRef<string | null>(null);
+	const isLeavingGameRef = useRef(false);
+	const countdownBeepRef = useRef(countdownBeep);
+	countdownBeepRef.current = countdownBeep;
 
 	// Estados del juego
 	const [playersState, setPlayersState] = useState<PlayerGameState[]>([]);
 	const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
+	const playersStateRef = useRef(playersState);
+	playersStateRef.current = playersState;
+	const currentPlayerIndexRef = useRef(currentPlayerIndex);
+	currentPlayerIndexRef.current = currentPlayerIndex;
+	const creatorUserIdRef = useRef<number | undefined>(playingUsers[0]?.id);
+	if (creatorUserIdRef.current === undefined && playingUsers[0]?.id !== undefined) {
+		creatorUserIdRef.current = playingUsers[0].id;
+	}
 	const [gameOverallStats, setGameOverallStats] = useState<GameOverallStats>({
 		gameId: params.gameId, roomCode: params.roomCode, startTime: new Date(), endTime: null, winnerUserId: null,
 	});
@@ -94,6 +156,16 @@ export default function BoardGame() {
 	const [dice, setDice] = useState<DiceType>(dices[0]);
 
 	const isCurrentPlayerBot = playersState[currentPlayerIndex]?.dbUserId === -100;
+	const currentTurnPlayerId = playersState[currentPlayerIndex]?.dbUserId;
+	const showTurnTimeoutToast = useCallback((notice: TurnTimeoutNotice) => {
+		if (lastTurnTimeoutToastIdRef.current === notice.id) return;
+		lastTurnTimeoutToastIdRef.current = notice.id;
+		Toast.show({
+			type: 'error',
+			text1: '⏱ Turno perdido',
+			text2: `${notice.playerName} perdió su turno por inactividad.`,
+		});
+	}, []);
 
 	useEffect(() => {
 		if (isApiConnected) {
@@ -138,6 +210,8 @@ export default function BoardGame() {
 		ACTUALIZAR CASILLA AL TERMINAR DE GIRAR EL DADO
 	----------------------------------------------------*/
 	const handleDiceSpinComplete = useCallback((diceValue: number) => {
+		if (isLeavingGameRef.current || gameEnded || !isMyTurn) return;
+
 		setLastDiceResult(diceValue);
 		const newLog = `🎲 ${diceValue}`
 		setCurrentActionLog(newLog);
@@ -153,7 +227,125 @@ export default function BoardGame() {
 			});
 		}
 
-	}, [playersState, currentPlayerIndex, socket, params.roomCode, hexTiles]);
+	}, [playersState, currentPlayerIndex, socket, params.roomCode, hexTiles, gameEnded, isMyTurn]);
+
+	const clearDiceTurnCountdown = useCallback(() => {
+		diceTurnTimerActiveRef.current = false;
+		if (diceTurnTimeoutRef.current) clearTimeout(diceTurnTimeoutRef.current);
+		if (diceCountdownRevealTimeoutRef.current) clearTimeout(diceCountdownRevealTimeoutRef.current);
+		if (diceCountdownBeepTimeoutRef.current) clearTimeout(diceCountdownBeepTimeoutRef.current);
+		if (diceCountdownIntervalRef.current) clearInterval(diceCountdownIntervalRef.current);
+		diceTurnTimeoutRef.current = null;
+		diceCountdownRevealTimeoutRef.current = null;
+		diceCountdownBeepTimeoutRef.current = null;
+		diceCountdownIntervalRef.current = null;
+		setDiceCountdown(null);
+	}, []);
+
+	const handleDiceTurnTimeout = useCallback(() => {
+		if (!diceTurnTimerActiveRef.current || isLeavingGameRef.current || !isMyTurn || gameEnded || isCurrentPlayerBot || playersState.length < 2) return;
+
+		clearDiceTurnCountdown();
+		const nextPlayerIndex = (currentPlayerIndex + 1) % playersState.length;
+		const timedOutPlayer = playersState[currentPlayerIndex];
+		if (!timedOutPlayer) return;
+		const playerName = playingUsers.find(player => player.id === timedOutPlayer.dbUserId)?.username
+			?? `Jugador ${timedOutPlayer.dbUserId}`;
+		const timeoutNotice: TurnTimeoutNotice = {
+			id: `${params.roomCode ?? 'game'}-${timedOutPlayer.dbUserId}-${Date.now()}`,
+			playerName,
+		};
+		const timeoutLog = `⏱ ${playerName} perdió su turno por inactividad`;
+		const nextPlayer = playersState[nextPlayerIndex];
+
+		setCurrentActionLog(timeoutLog);
+		setCurrentPlayerIndex(nextPlayerIndex);
+		setIsMyTurn(nextPlayer?.dbUserId === idUser || (isHost && nextPlayer?.dbUserId === -100));
+		showTurnTimeoutToast(timeoutNotice);
+
+		if (socket) {
+			socket.emit('broadcastGameState', {
+				roomCode: params.roomCode,
+				gameState: {
+					playersState,
+					currentPlayerIndex: nextPlayerIndex,
+					gameEnded: false,
+					winnerUserId: null,
+					lastDiceResult,
+					currentActionLog: timeoutLog,
+					turnTimeoutNotice: timeoutNotice,
+				},
+			});
+		}
+	}, [
+		clearDiceTurnCountdown,
+		currentPlayerIndex,
+		gameEnded,
+		idUser,
+		isCurrentPlayerBot,
+		isHost,
+		isMyTurn,
+		lastDiceResult,
+		params.roomCode,
+		playersState,
+		playingUsers,
+		showTurnTimeoutToast,
+		socket,
+	]);
+	handleDiceTurnTimeoutRef.current = handleDiceTurnTimeout;
+
+	const handleDiceSpinStart = useCallback(() => {
+		clearDiceTurnCountdown();
+	}, [clearDiceTurnCountdown]);
+
+	useEffect(() => {
+		if (!isMyTurn || gameEnded || isCurrentPlayerBot || playersState.length < 2) {
+			clearDiceTurnCountdown();
+			return;
+		}
+
+		diceTurnTimerActiveRef.current = true;
+		const turnStartedAt = Date.now();
+		const deadline = turnStartedAt + DICE_TURN_TIMEOUT_MS;
+		setDiceCountdown(null);
+
+		diceCountdownRevealTimeoutRef.current = setTimeout(() => {
+			if (!diceTurnTimerActiveRef.current) return;
+			setDiceCountdown(DICE_TURN_TIMEOUT_SECONDS - DICE_COUNTDOWN_DELAY_MS / 1000);
+			if (Platform.OS !== 'web') {
+				void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+			}
+		}, DICE_COUNTDOWN_DELAY_MS);
+
+		diceCountdownBeepTimeoutRef.current = setTimeout(() => {
+			if (!diceTurnTimerActiveRef.current) return;
+			countdownBeepRef.current.seekTo(0);
+			countdownBeepRef.current.play();
+		}, DICE_BEEP_DELAY_MS);
+
+		diceCountdownIntervalRef.current = setInterval(() => {
+			if (!diceTurnTimerActiveRef.current) return;
+			if (Date.now() - turnStartedAt < DICE_COUNTDOWN_DELAY_MS) return;
+			const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+			setDiceCountdown(secondsLeft);
+		}, 250);
+
+		diceTurnTimeoutRef.current = setTimeout(() => {
+			handleDiceTurnTimeoutRef.current();
+		}, DICE_TURN_TIMEOUT_MS);
+
+		return () => {
+			diceTurnTimerActiveRef.current = false;
+			if (diceTurnTimeoutRef.current) clearTimeout(diceTurnTimeoutRef.current);
+			if (diceCountdownRevealTimeoutRef.current) clearTimeout(diceCountdownRevealTimeoutRef.current);
+			if (diceCountdownBeepTimeoutRef.current) clearTimeout(diceCountdownBeepTimeoutRef.current);
+			if (diceCountdownIntervalRef.current) clearInterval(diceCountdownIntervalRef.current);
+			diceTurnTimeoutRef.current = null;
+			diceCountdownRevealTimeoutRef.current = null;
+			diceCountdownBeepTimeoutRef.current = null;
+			diceCountdownIntervalRef.current = null;
+		};
+	}, [clearDiceTurnCountdown, currentTurnPlayerId, gameEnded, isCurrentPlayerBot, isMyTurn]);
 
 	/*---------------------------------------------------
 		CUANDO EL JUGADOR LLEGUE A SU CASILLA DESTINO
@@ -325,7 +517,11 @@ export default function BoardGame() {
 	}, []);
 
 	// Resetear el log de acciones cada vez que cambia el turno
-	useEffect(() => { setCurrentActionLog(''); }, [currentPlayerIndex]);
+	useEffect(() => {
+		setCurrentActionLog(previousLog =>
+			previousLog.startsWith('⏱') || previousLog.startsWith('🚪') ? previousLog : ''
+		);
+	}, [currentPlayerIndex]);
 
 	/*---------------------------------------------------
 		FINALIZAR TURNO Y PROCEDER A SIGUIENTE JUGADOR
@@ -381,23 +577,30 @@ export default function BoardGame() {
 		UN JUGADOR ABANDONÓ LA PARTIDA
 	-----------------------------------------------------*/
 	const PlayerLeaveGame = (userId: number, currentPlayers: PlayerGameState[], currPlayerIdx: number) => {
+		isLeavingGameRef.current = true;
+		clearDiceTurnCountdown();
+		setIsMyTurn(false);
+
+		const remainingPlayers = currentPlayers.filter(player => player.dbUserId !== userId);
+		const creatorIsLeaving = userId === idUser && params.isCreator === '1';
+		const gameEndedAfterLeave = creatorIsLeaving || remainingPlayers.length < 2;
+		const nextPlayerIndex = gameEndedAfterLeave
+			? 0
+			: getCurrentIndexAfterRemoval(currentPlayers, remainingPlayers, currPlayerIdx);
+
 		if (socket) {
-			const remainingPlayers = currentPlayers.filter(p => p.dbUserId !== userId);
-			if (currPlayerIdx >= remainingPlayers.length) {
-				currPlayerIdx = remainingPlayers.length - 1;
-			} else if (currentPlayers[currentPlayerIndex].dbUserId === userId) {
-				currPlayerIdx = currentPlayerIndex % remainingPlayers.length;
-			}
-			// Emitir el nuevo estado del juego
+			const leavingPlayerName = playingUsers.find(player => player.id === userId)?.username ?? 'Un jugador';
+			const leaveLog = `🚪 ${leavingPlayerName} abandonó la partida`;
 			socket.emit('broadcastGameState', {
 				roomCode: params.roomCode,
 				gameState: {
 					playersState: remainingPlayers,
-					currentPlayerIndex: currPlayerIdx,
-					gameEnded: remainingPlayers.length < 2 || params.isCreator === '1', // Terminar si quedan menos de 2 jugadores o el creador se fué
-					winnerUserId: remainingPlayers.length < 2 || params.isCreator === '1' ? remainingPlayers[0]?.dbUserId : null,
-					lastDiceResult
-				}
+					currentPlayerIndex: nextPlayerIndex,
+					gameEnded: gameEndedAfterLeave,
+					winnerUserId: gameEndedAfterLeave ? remainingPlayers[0]?.dbUserId ?? null : null,
+					lastDiceResult,
+					currentActionLog: leaveLog,
+				},
 			});
 		}
 		router.back();
@@ -491,13 +694,19 @@ export default function BoardGame() {
 		winnerUserId: number | null;
 		lastDiceResult: number;
 		currentActionLog?: string;
+		turnTimeoutNotice?: TurnTimeoutNotice;
 	}) => {
+		playersStateRef.current = receivedGameState.playersState;
+		currentPlayerIndexRef.current = receivedGameState.currentPlayerIndex;
 		setPlayersState(receivedGameState.playersState);
 		setCurrentPlayerIndex(receivedGameState.currentPlayerIndex);
 		setGameEnded(receivedGameState.gameEnded);
 		setLastDiceResult(receivedGameState.lastDiceResult);
 		if (receivedGameState.currentActionLog) {
 			setCurrentActionLog(receivedGameState.currentActionLog);
+		}
+		if (receivedGameState.turnTimeoutNotice) {
+			showTurnTimeoutToast(receivedGameState.turnTimeoutNotice);
 		}
 		if (receivedGameState.winnerUserId) {
 			setGameOverallStats(prev => ({ ...prev, winnerUserId: receivedGameState.winnerUserId, endTime: prev.endTime || new Date() }));
@@ -509,7 +718,7 @@ export default function BoardGame() {
 			const nextDb = receivedGameState.playersState[receivedGameState.currentPlayerIndex]?.dbUserId;
 			setIsMyTurn(nextDb === idUser || (isHost && nextDb === -100));
 		}
-	}, [idUser, isHost]);
+	}, [idUser, isHost, showTurnTimeoutToast]);
 
 	const handleGameStateUpdatedRef = useRef(handleGameStateUpdated);
 	useEffect(() => { handleGameStateUpdatedRef.current = handleGameStateUpdated; }, [handleGameStateUpdated]);
@@ -521,6 +730,7 @@ export default function BoardGame() {
 		winnerUserId: number | null;
 		lastDiceResult: number;
 		currentActionLog?: string;
+		turnTimeoutNotice?: TurnTimeoutNotice;
 	}) => {
 		handleGameStateUpdatedRef.current(receivedGameState);
 	}, []);
@@ -534,6 +744,55 @@ export default function BoardGame() {
 			socket.off('gameStateUpdated', stableGameStateHandler);
 		};
 	}, [socket, stableGameStateHandler]);
+
+	useEffect(() => {
+		if (!socket) return;
+
+		const handleGroupUpdated = (update: { users: Array<{ dbUserId: number }> }) => {
+			const currentPlayers = playersStateRef.current;
+			const memberIds = new Set(update.users.map(user => user.dbUserId));
+			const removedPlayers = currentPlayers.filter(player => !memberIds.has(player.dbUserId));
+			if (removedPlayers.length === 0) return;
+
+			const remainingPlayers = currentPlayers.filter(player => memberIds.has(player.dbUserId));
+			const nextPlayerIndex = getCurrentIndexAfterRemoval(
+				currentPlayers,
+				remainingPlayers,
+				currentPlayerIndexRef.current,
+			);
+			const creatorLeft = creatorUserIdRef.current !== undefined
+				&& removedPlayers.some(player => player.dbUserId === creatorUserIdRef.current);
+			const gameEndedAfterDisconnect = creatorLeft || remainingPlayers.length < 2;
+			const playerName = playingUsers.find(user => user.id === removedPlayers[0]?.dbUserId)?.username
+				?? `Jugador ${removedPlayers[0]?.dbUserId ?? ''}`;
+
+			playersStateRef.current = remainingPlayers;
+			currentPlayerIndexRef.current = nextPlayerIndex;
+			setPlayersState(remainingPlayers);
+			setCurrentPlayerIndex(nextPlayerIndex);
+			setCurrentActionLog(`🚪 ${playerName} se desconectó`);
+			setGameEnded(gameEndedAfterDisconnect);
+
+			if (gameEndedAfterDisconnect) {
+				const winnerUserId = remainingPlayers[0]?.dbUserId ?? null;
+				setGameOverallStats(previous => ({
+					...previous,
+					winnerUserId,
+					endTime: previous.endTime || new Date(),
+				}));
+				setIsGameStatsModalVisible(true);
+				setIsMyTurn(false);
+			} else {
+				const nextPlayer = remainingPlayers[nextPlayerIndex];
+				setIsMyTurn(nextPlayer?.dbUserId === idUser || (isHost && nextPlayer?.dbUserId === -100));
+			}
+		};
+
+		socket.on('groupUpdate', handleGroupUpdated);
+		return () => {
+			socket.off('groupUpdate', handleGroupUpdated);
+		};
+	}, [idUser, isHost, playingUsers, socket]);
 	/*---------------------------------------------------
 		HANDLE MODAL ACTIONS
 	----------------------------------------------------*/
@@ -579,6 +838,38 @@ export default function BoardGame() {
 		}
 		handleModalClose(newPlayersState, newLog);
 	};
+
+	const handleEducationTimeout = () => {
+		if (modalType !== 'Pregunta') {
+			handleModalClose();
+			return;
+		}
+
+		const timedOutPlayer = playersState[currentPlayerIndex];
+		if (!timedOutPlayer) {
+			handleModalClose();
+			return;
+		}
+
+		const updatedPlayer = {
+			...timedOutPlayer,
+			pointsAccumulated: timedOutPlayer.pointsAccumulated - 5,
+		};
+		const updatedPlayersState = playersState.map((player, index) =>
+			index === currentPlayerIndex ? updatedPlayer : player
+		);
+		const timeoutLog = `⏱ Tiempo agotado (-5 pts)${currentActionLog ? ` · ${currentActionLog}` : ''}`;
+
+		setPlayersState(updatedPlayersState);
+		setCurrentActionLog(timeoutLog);
+		Toast.show({
+			type: 'error',
+			text1: 'Tiempo agotado',
+			text2: 'Perdiste 5 puntos por no responder.',
+		});
+		handleModalClose(updatedPlayersState, timeoutLog);
+	};
+
 	// Handlers for Game Stats Modal
 	const handleOpenGameStatsModal = () => { setIsGameStatsModalVisible(true); };
 
@@ -623,6 +914,7 @@ export default function BoardGame() {
 		bad.volume = volEffects
 		correct.volume = volEffects
 		fail.volume = volEffects
+		countdownBeep.volume = volEffects
 	}, [volEffects])
 
 	/*---------------------------------------------------
@@ -636,6 +928,7 @@ export default function BoardGame() {
 
 	const boardWidth = Math.min(gameAreaWidth, 420);
 	const boardHeight = canvas_width > 0 ? boardWidth * (canvas_height / canvas_width) : 0;
+	const diceContainerHeight = layoutBottom.height + 85;
 
 	return (
 		<View style={styles.container}>
@@ -692,36 +985,6 @@ export default function BoardGame() {
 					</Svg>
 				</View>
 
-				{/* Dado */}
-				<Animated.View style={[styles.diceContainer, { left: layoutBottom.width / 2 - 72 }]}>
-					{isMyTurn && (
-						<Svg width="100%" height={layoutBottom.height + 85}>
-							<Dice
-								initialValue={1} // Dice always starts at 1 visually
-								onSpinComplete={handleDiceSpinComplete} // Callback for when spin ends
-								position={{ x: 33, y: 20 }}
-								scale={dice.scale} lineWidth={dice.border_width}
-								colors={{ faceUpColor: dice.color_faceup, faceLeftColor: dice.color_faceleft, faceRightColor: dice.color_faceright, line: dice.color_border, dots: dice.color_dots }}
-								isAnimated={true}
-								autoSpin={isCurrentPlayerBot}
-							/>
-						</Svg>
-					)}
-					{/* Mostrar quien tiene el turno cuando no es mi turno  */}
-					{!isMyTurn && <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginBottom: -70 }}>
-						<Text style={styles.turnOf}>Turno de</Text>
-						{/*}
-						{playersState[currentPlayerIndex].profileImage ? (
-							<Image 
-								source={{ uri: playersState[currentPlayerIndex].profileImage }} 
-								style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: 'white', marginBottom: 5 }} 
-							/>
-						) : null} */}
-						<Text style={styles.currentPlayer}>{playingUsers.find(p => p.id === playersState[currentPlayerIndex].dbUserId)?.username || '?'}</Text>
-						<Text style={styles.turnOf}>{currentActionLog || `⏳`}</Text>
-					</View>}
-				</Animated.View>
-
 				<Animated.View style={{ zIndex: 1 }}>
 					<Svg>
 						{/* Linea de cubos inferior */}
@@ -754,11 +1017,61 @@ export default function BoardGame() {
 					</Svg>
 				</Animated.View>
 			</View>
+			{/* Dado y su área táctil en una vista nativa fuera de controlArea,
+			    para que el padre no recorte los toques que sobresalen hacia arriba. */}
+			<Animated.View style={[
+				styles.diceContainer,
+				{
+					left: layoutBottom.width / 2 - 72,
+					top: layoutBottom.y - 50,
+					height: isMyTurn ? diceContainerHeight : 50,
+					zIndex: 2,
+					elevation: 2,
+				},
+			]}>
+				{isMyTurn && (
+					<Dice
+						initialValue={1} // Dice always starts at 1 visually
+						onSpinComplete={handleDiceSpinComplete} // Callback for when spin ends
+						onSpinStart={handleDiceSpinStart}
+						position={{ x: 33, y: 20 }}
+						scale={dice.scale} lineWidth={dice.border_width}
+						colors={{ faceUpColor: dice.color_faceup, faceLeftColor: dice.color_faceleft, faceRightColor: dice.color_faceright, line: dice.color_border, dots: dice.color_dots }}
+						isAnimated={true}
+						autoSpin={isCurrentPlayerBot}
+					/>
+				)}
+				{diceCountdown !== null && isMyTurn && (
+					<View
+						pointerEvents="none"
+						style={[
+							styles.diceCountdown,
+							{ borderColor: diceCountdown <= 2 ? '#E74C3C' : '#FFFFFF' },
+						]}
+					>
+						<Text style={styles.diceCountdownText}>{diceCountdown}</Text>
+					</View>
+				)}
+				{/* Mostrar quien tiene el turno cuando no es mi turno */}
+				{!isMyTurn && <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginBottom: -70 }}>
+					<Text style={styles.turnOf}>Turno de</Text>
+					{/*}
+					{playersState[currentPlayerIndex].profileImage ? (
+						<Image
+							source={{ uri: playersState[currentPlayerIndex].profileImage }}
+							style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: 'white', marginBottom: 5 }}
+						/>
+					) : null} */}
+					<Text style={styles.currentPlayer}>{playingUsers.find(p => p.id === playersState[currentPlayerIndex].dbUserId)?.username || '?'}</Text>
+					<Text style={styles.turnOf}>{currentActionLog || `⏳`}</Text>
+				</View>}
+			</Animated.View>
 			<ModalEducation
 				educationItem={currentEducationItem}
 				modalType={modalType}
 				isModalVisible={isModalVisible}
 				handleModalClose={handleModalClose}
+				handleTimeout={handleEducationTimeout}
 				handleAnswer={handleAnswer}
 				subtopicName={params.subtopicName ?? ''}
 			/>
@@ -813,6 +1126,24 @@ const styles = StyleSheet.create({
 		width: 144,
 		height: 50,
 		position: 'absolute',
+	},
+	diceCountdown: {
+		position: 'absolute',
+		left: 108,
+		top: 25,
+		width: 32,
+		height: 32,
+		borderRadius: 16,
+		borderWidth: 3,
+		backgroundColor: '#6599C3',
+		alignItems: 'center',
+		justifyContent: 'center',
+		zIndex: 3,
+	},
+	diceCountdownText: {
+		color: 'white',
+		fontSize: 14,
+		fontWeight: 'bold',
 	},
 	turnOf: {
 		fontSize: 16,

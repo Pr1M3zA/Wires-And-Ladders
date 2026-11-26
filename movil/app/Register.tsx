@@ -27,7 +27,7 @@ export default function Register() {
 	const [confirmPassword, setConfirmPassword] = useState('');
 	const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 	const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
-	const [image, setImage] = useState(Platform.OS === 'web' ? Gato : Image.resolveAssetSource(Gato).uri);
+	const [image, setImage] = useState(Platform.OS === 'web' ? Gato : Image.resolveAssetSource(Gato)?.uri ?? '');
 	const [status, requestPermission] = ImgPicker.useMediaLibraryPermissions();
 	const [loading, setLoading] = useState(false);
 	const [errUserName, setErrUserName] = useState('');
@@ -88,7 +88,7 @@ export default function Register() {
 		setLoading(true);
 		let sizeOk = true;
 		let base64img = null;
-		if (image != (Platform.OS === 'web' ? Gato : Image.resolveAssetSource(Gato).uri)) {
+		if (image != (Platform.OS === 'web' ? Gato : Image.resolveAssetSource(Gato)?.uri ?? '')) {
 			base64img = await FileSystem.readAsStringAsync(image, { encoding: FileSystem.EncodingType.Base64 });
 			sizeOk = base64img.length < IMAGE_SIZE_LIMIT;
 		}
@@ -138,7 +138,7 @@ export default function Register() {
 		//console.log(`Actualizar usuario: API PUT: ${apiURL}/user: Inicio llamada a las ${getHour(InitCallHour)}`)
 		setLoading(true);
 		let base64img = null;
-		if (image != Image.resolveAssetSource(Gato).uri)
+		if (image != (Image.resolveAssetSource(Gato)?.uri ?? ''))
 			base64img = await FileSystem.readAsStringAsync(image, { encoding: FileSystem.EncodingType.Base64 });
 		await fetch(apiURL + '/users/user', {
 			method: 'PUT',

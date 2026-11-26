@@ -1,15 +1,18 @@
-import { FC, useCallback } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { View, Text, Modal, StyleSheet, TouchableOpacity, Dimensions } from 'react-native'
 import Animated from 'react-native-reanimated';
 import type { EduInfoQuestionsType } from '@/utils/types';
-import Svg from 'react-native-svg';
 import Dice from '@/components/Dice';
+
+const MODAL_TIMEOUT_SECONDS = 20;
+const COUNTDOWN_VISIBLE_SECONDS = 10;
 
 interface modalProps {
 	educationItem: EduInfoQuestionsType | null,
 	modalType: 'Informativo' | 'Pregunta' | null,
 	isModalVisible: boolean,
 	handleModalClose: () => void,
+	handleTimeout: () => void,
 	handleAnswer: (selectedAnswer: number) => void,
 	subtopicName: string,
 }
@@ -17,15 +20,64 @@ interface modalProps {
 const ModalEducation: FC<modalProps> = (props) => {
 	const handleDiceSpinComplete = useCallback((diceValue: number) => { }, [])
 	const width = Dimensions.get('window').width;
+	const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+	const handleTimeoutRef = useRef(props.handleTimeout);
+	handleTimeoutRef.current = props.handleTimeout;
+
+	useEffect(() => {
+		if (!props.isModalVisible || !props.educationItem || !props.modalType) {
+			setSecondsRemaining(null);
+			return;
+		}
+
+		let timeoutHandled = false;
+		const deadline = Date.now() + MODAL_TIMEOUT_SECONDS * 1000;
+		setSecondsRemaining(null);
+
+		const interval = setInterval(() => {
+			const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+			if (remaining <= COUNTDOWN_VISIBLE_SECONDS) {
+				setSecondsRemaining(remaining);
+			}
+		}, 200);
+		const timeout = setTimeout(() => {
+			if (timeoutHandled) return;
+			timeoutHandled = true;
+			setSecondsRemaining(0);
+			handleTimeoutRef.current();
+		}, MODAL_TIMEOUT_SECONDS * 1000);
+
+		return () => {
+			clearInterval(interval);
+			clearTimeout(timeout);
+		};
+	}, [props.educationItem?.id, props.isModalVisible, props.modalType]);
+
 	return (
 		<View>
 			<Modal animationType="slide" transparent={true} visible={props.isModalVisible} onRequestClose={props.handleModalClose}>
 				<View style={styles.modalCenteredView}>
 					<View style={styles.modalView}>
+						{secondsRemaining !== null && (
+							<View
+								pointerEvents="none"
+								style={[
+									styles.countdownBadge,
+									secondsRemaining <= 3 && styles.countdownBadgeUrgent,
+								]}
+							>
+								<Text style={[
+									styles.countdownText,
+									secondsRemaining <= 3 && styles.countdownTextUrgent,
+								]}>
+									{secondsRemaining}s
+								</Text>
+							</View>
+						)}
 						{props.educationItem && (
 							<>
 								<Animated.View style={{ width: '100%' }}>
-									<Svg width="100%" height={90}>
+									<View style={{ width: '100%', height: 90 }}>
 										<Dice
 											initialValue={1}
 											onSpinComplete={handleDiceSpinComplete} // Callback for when spin ends
@@ -34,7 +86,7 @@ const ModalEducation: FC<modalProps> = (props) => {
 											colors={{ faceUpColor: "#6599C3", faceLeftColor: "#6599C3", faceRightColor: "#6599C3", line: "white", dots: "white" }}
 											isAnimated={false}
 										/>
-									</Svg>
+									</View>
 								</Animated.View>
 								<Text style={styles.generation}>{props.modalType === 'Informativo' ? '¿Sabías que?' : '¡Pregunta!'}</Text>
 								<Text style={styles.themeText}>{props.subtopicName}</Text>
@@ -90,6 +142,7 @@ const styles = StyleSheet.create({
 		//borderWidth: 5,
 	},
 	modalView: {
+		position: 'relative',
 		margin: 20,
 		backgroundColor: "white",
 		//borderRadius: 20,
@@ -107,6 +160,30 @@ const styles = StyleSheet.create({
 		borderColor: '#6599C3',
 		borderWidth: 10,
 
+	},
+	countdownBadge: {
+		position: 'absolute',
+		top: 5,
+		right: 5,
+		zIndex: 2,
+		minWidth: 38,
+		height: 28,
+		paddingHorizontal: 7,
+		borderRadius: 14,
+		backgroundColor: '#EAF1F7',
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	countdownBadgeUrgent: {
+		backgroundColor: '#FCE8E6',
+	},
+	countdownText: {
+		color: '#365C80',
+		fontSize: 13,
+		fontWeight: 'bold',
+	},
+	countdownTextUrgent: {
+		color: '#C0392B',
 	},
 	modalText: {
 		//marginBottom: 10,
